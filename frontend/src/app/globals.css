@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-navy: #1b2b5b;
+  --color-navy-light: #2a3f80;
+  --color-red: #c8102e;
+  --color-red-light: #e31837;
+  --color-gold: #f5a623;
+  --color-gold-light: #ffb84d;
+  --color-cream: #f4f1ea;
+  --color-cream-dark: #e8e3d5;
+  --sidebar-width: 240px;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-cream text-navy font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-bold tracking-tight;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gold text-navy font-bold px-4 py-2 rounded-lg hover:bg-gold-light transition-colors duration-200 inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-navy text-cream font-semibold px-4 py-2 rounded-lg hover:bg-navy-light transition-colors duration-200 inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-danger {
+    @apply bg-red text-white font-semibold px-4 py-2 rounded-lg hover:bg-red-light transition-colors duration-200 inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply text-navy font-semibold px-4 py-2 rounded-lg hover:bg-cream-dark transition-colors duration-200 inline-flex items-center gap-2;
+  }
+
+  .card {
+    @apply bg-white rounded-xl border border-cream-dark shadow-sm p-6;
+  }
+
+  .stat-card {
+    @apply bg-white rounded-xl border border-cream-dark shadow-sm p-5 flex flex-col gap-1;
+  }
+
+  .badge-published {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800;
+  }
+
+  .badge-draft {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600;
+  }
+
+  .badge-scheduled {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800;
+  }
+
+  .badge-failed {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700;
+  }
+
+  .nav-link {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-cream/70 hover:text-cream hover:bg-white/10 transition-all duration-200;
+  }
+
+  .nav-link-active {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gold bg-white/10 border-l-2 border-gold;
+  }
+
+  .hashtag-chip {
+    @apply inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-navy/10 text-navy hover:bg-navy/20 transition-colors cursor-pointer;
+  }
+
+  .platform-tab {
+    @apply px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer;
+  }
+
+  .platform-tab-active {
+    @apply bg-navy text-gold shadow-sm;
+  }
+
+  .platform-tab-inactive {
+    @apply text-navy/60 hover:text-navy hover:bg-cream-dark;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(245, 166, 35, 0.4) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(245, 166, 35, 0.4);
+    border-radius: 999px;
+  }
+}
+
+/* Spinning animation for loading */
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 2s linear infinite;
+}
+
+/* Pulsing dots for streaming */
+@keyframes dot-pulse {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.dot-pulse span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: currentColor;
+  animation: dot-pulse 1.4s ease-in-out infinite both;
+}
+
+.dot-pulse span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.dot-pulse span:nth-child(2) {
+  animation-delay: -0.16s;
+}
