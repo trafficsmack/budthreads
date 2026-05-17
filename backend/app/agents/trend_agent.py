@@ -10,6 +10,7 @@ Uses Claude claude-opus-4-7 with the web_search server-side tool to research:
 import json
 import re
 import anthropic
+from anthropic import AsyncAnthropic
 from app.config import get_settings
 
 settings = get_settings()
@@ -48,16 +49,16 @@ async def research_trends(
             upcoming_dates (list): Relevant upcoming dates and events
             content_formats (list): Recommended content formats for the platform
     """
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     user_prompt = f"""Research current trends on {platform.upper()} for a brand in the
 {niche} niche. The brand (Vintage Bud Threads) sells retro Bud Man apparel and gear
 celebrating Americana and America's 250th birthday.
 
-Please search for and compile:
-1. Currently trending hashtags on {platform} for americana, vintage beer, patriotic merchandise,
+Please compile:
+1. Trending hashtags on {platform} for americana, vintage beer, patriotic merchandise,
    and retro apparel content
-2. Trending content formats and viral content types on {platform} right now (especially for
+2. Trending content formats and viral content types on {platform} (especially for
    lifestyle, merchandise, and Americana brands)
 3. Upcoming relevant dates and events in the next 90 days that would be good content hooks
    (patriotic holidays, beer events, sporting events, seasonal moments)
@@ -67,39 +68,43 @@ Please search for and compile:
 Return ONLY a valid JSON object with this exact structure:
 {{
   "hashtags": [
-    {{"tag": "#example", "estimated_reach": "broad/medium/niche", "relevance": "high/medium"}}
+    {{"tag": "example", "estimated_reach": "broad/medium/niche", "category": "Brand/Lifestyle/Fashion/Beer/Vintage"}}
   ],
-  "trends": [
-    {{"trend": "trend name", "description": "brief description", "how_to_use": "how the brand can use this"}}
+  "content_trends": [
+    {{"title": "trend name", "description": "brief description", "format": "Reel/Carousel/Photo/Story/TikTok"}}
   ],
   "upcoming_dates": [
-    {{"date": "YYYY-MM-DD or month", "event": "event name", "content_idea": "specific content hook for the brand"}}
+    {{"date": "YYYY-MM-DD", "name": "event name", "relevance": "specific content hook for the brand"}}
   ],
-  "content_formats": [
-    {{"format": "format name", "description": "description", "platform_fit": "why it works on {platform}"}}
+  "content_tips": [
+    {{"tip": "actionable tip", "example": "brief example or null"}}
   ],
-  "research_summary": "2-3 sentence summary of key findings"
+  "raw_insights": ["key insight 1", "key insight 2"]
 }}
 """
 
-    # Use web_search tool so Claude can look up real-time trending information
-    with client.messages.stream(
-        model="claude-opus-4-7",
-        max_tokens=4096,
-        thinking={"type": "adaptive"},
-        output_config={"effort": "high"},
-        system=TREND_SYSTEM_PROMPT,
-        tools=[
-            {
-                "type": "web_search_20260209",
-                "name": "web_search",
-            }
-        ],
-        messages=[
-            {"role": "user", "content": user_prompt}
-        ],
-    ) as stream:
-        final_message = stream.get_final_message()
+    try:
+        async with client.messages.stream(
+            model="claude-opus-4-7",
+            max_tokens=4096,
+            thinking={"type": "adaptive"},
+            output_config={"effort": "high"},
+            system=TREND_SYSTEM_PROMPT,
+            tools=[{"type": "web_search_20260209", "name": "web_search"}],
+            messages=[{"role": "user", "content": user_prompt}],
+        ) as stream:
+            final_message = await stream.get_final_message()
+    except anthropic.APIError:
+        # web_search not enabled on this key — fall back to training knowledge
+        async with client.messages.stream(
+            model="claude-opus-4-7",
+            max_tokens=4096,
+            thinking={"type": "adaptive"},
+            output_config={"effort": "high"},
+            system=TREND_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_prompt}],
+        ) as stream:
+            final_message = await stream.get_final_message()
 
     # Extract the final text response
     raw_text = ""

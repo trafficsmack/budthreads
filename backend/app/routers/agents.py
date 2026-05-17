@@ -64,10 +64,7 @@ async def _generate_content_events(
     tone_notes: str,
 ) -> AsyncGenerator[str, None]:
     """Async generator that calls the content agent and streams progress events."""
-    request_id = str(uuid.uuid4())
-
-    # Emit a "started" event immediately so the client knows the stream is live
-    yield f"data: {json.dumps({'event': 'started', 'request_id': request_id, 'message': 'Generating content with Claude...'})}\n\n"
+    yield f"data: {json.dumps({'type': 'progress', 'message': 'Generating content with Claude...'})}\n\n"
 
     try:
         result = await generate_post_content(
@@ -79,15 +76,11 @@ async def _generate_content_events(
             tone_notes=tone_notes,
         )
 
-        # Emit one content event per platform so the frontend can render
-        # each platform's result as it arrives in the final payload
-        for platform, content in result.items():
-            yield f"data: {json.dumps({'event': 'platform_content', 'platform': platform, 'content': content})}\n\n"
-
-        yield f"data: {json.dumps({'event': 'complete', 'request_id': request_id, 'result': result})}\n\n"
+        yield f"data: {json.dumps({'type': 'result', 'data': result})}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     except Exception as e:
-        yield f"data: {json.dumps({'event': 'error', 'request_id': request_id, 'error': str(e)})}\n\n"
+        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
 
 async def _research_trends_events(
@@ -95,21 +88,52 @@ async def _research_trends_events(
     niche: str,
 ) -> AsyncGenerator[str, None]:
     """Async generator that calls the trend agent and streams progress events."""
-    request_id = str(uuid.uuid4())
-
-    yield f"data: {json.dumps({'event': 'started', 'request_id': request_id, 'message': f'Researching trends on {platform}...'})}\n\n"
+    yield f"data: {json.dumps({'type': 'progress', 'message': f'Researching trends on {platform}...'})}\n\n"
 
     try:
         result = await research_trends(platform=platform, niche=niche)
 
-        yield f"data: {json.dumps({'event': 'hashtags', 'data': result.get('hashtags', [])})}\n\n"
-        yield f"data: {json.dumps({'event': 'trends', 'data': result.get('trends', [])})}\n\n"
-        yield f"data: {json.dumps({'event': 'upcoming_dates', 'data': result.get('upcoming_dates', [])})}\n\n"
-        yield f"data: {json.dumps({'event': 'content_formats', 'data': result.get('content_formats', [])})}\n\n"
-        yield f"data: {json.dumps({'event': 'complete', 'request_id': request_id, 'result': result})}\n\n"
+        # Normalize to TrendResults shape (handles both old and new field names)
+        normalized: dict = {
+            "hashtags": [
+                {
+                    "tag": h.get("tag", "").lstrip("#"),
+                    "estimated_reach": h.get("estimated_reach", ""),
+                    "category": h.get("category", h.get("relevance", "General")),
+                }
+                for h in result.get("hashtags", [])
+            ],
+            "content_trends": [
+                {
+                    "title": t.get("title", t.get("trend", "")),
+                    "description": t.get("description", ""),
+                    "format": t.get("format", t.get("how_to_use", "")),
+                }
+                for t in result.get("content_trends", result.get("trends", []))
+            ],
+            "upcoming_dates": [
+                {
+                    "date": d.get("date", ""),
+                    "name": d.get("name", d.get("event", "")),
+                    "relevance": d.get("relevance", d.get("content_idea", "")),
+                }
+                for d in result.get("upcoming_dates", [])
+            ],
+            "content_tips": [
+                {
+                    "tip": t.get("tip", t.get("description", t.get("format", ""))),
+                    "example": t.get("example", t.get("platform_fit")),
+                }
+                for t in result.get("content_tips", result.get("content_formats", []))
+            ],
+            "raw_insights": result.get("raw_insights", [result["research_summary"]] if result.get("research_summary") else []),
+        }
+
+        yield f"data: {json.dumps({'type': 'result', 'data': normalized})}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     except Exception as e:
-        yield f"data: {json.dumps({'event': 'error', 'request_id': request_id, 'error': str(e)})}\n\n"
+        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
 
 async def _discover_influencers_events(
@@ -117,20 +141,49 @@ async def _discover_influencers_events(
     niche: str,
 ) -> AsyncGenerator[str, None]:
     """Async generator that calls the influencer agent and streams progress events."""
-    request_id = str(uuid.uuid4())
-
-    yield f"data: {json.dumps({'event': 'started', 'request_id': request_id, 'message': f'Finding influencers on {platform}...'})}\n\n"
+    yield f"data: {json.dumps({'type': 'progress', 'message': f'Finding influencers on {platform}...'})}\n\n"
 
     try:
         result = await discover_influencers(platform=platform, niche=niche)
 
-        yield f"data: {json.dumps({'event': 'influencers', 'data': result.get('influencers', [])})}\n\n"
-        yield f"data: {json.dumps({'event': 'brands', 'data': result.get('brands', [])})}\n\n"
-        yield f"data: {json.dumps({'event': 'outreach_templates', 'data': result.get('outreach_templates', [])})}\n\n"
-        yield f"data: {json.dumps({'event': 'complete', 'request_id': request_id, 'result': result})}\n\n"
+        # Normalize to InfluencerResults shape (handles both old and new field names)
+        normalized: dict = {
+            "influencers": [
+                {
+                    "name": inf.get("name", ""),
+                    "handle": inf.get("handle", ""),
+                    "estimated_followers": inf.get("estimated_followers", ""),
+                    "niche_tags": inf.get("niche_tags", [inf.get("niche")] if inf.get("niche") else []),
+                    "bio": inf.get("bio", inf.get("why_relevant", inf.get("content_style", ""))),
+                    "engagement_rate": inf.get("engagement_rate", ""),
+                    "profile_url": inf.get("profile_url", ""),
+                }
+                for inf in result.get("influencers", [])
+            ],
+            "similar_brands": [
+                {
+                    "name": b.get("name", ""),
+                    "handle": b.get("handle", ""),
+                    "description": b.get("description", b.get("why_relevant", b.get("collaboration_opportunity", ""))),
+                }
+                for b in result.get("similar_brands", result.get("brands", []))
+            ],
+            "outreach_templates": [
+                {
+                    "subject": t.get("subject", t.get("subject_or_opener", "")),
+                    "body": t.get("body", t.get("message", "")),
+                    "type": t.get("type", t.get("scenario", "general")),
+                }
+                for t in result.get("outreach_templates", [])
+            ],
+            "raw_insights": result.get("raw_insights", [result["research_summary"]] if result.get("research_summary") else []),
+        }
+
+        yield f"data: {json.dumps({'type': 'result', 'data': normalized})}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     except Exception as e:
-        yield f"data: {json.dumps({'event': 'error', 'request_id': request_id, 'error': str(e)})}\n\n"
+        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────

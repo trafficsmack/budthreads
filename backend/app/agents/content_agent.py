@@ -8,7 +8,7 @@ and streaming for robust generation.
 
 import json
 import re
-import anthropic
+from anthropic import AsyncAnthropic
 from app.config import get_settings
 
 settings = get_settings()
@@ -173,7 +173,7 @@ async def generate_post_content(
         Dict keyed by platform, each containing:
             caption (str), hashtags (list[str]), suggestions (dict)
     """
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     platforms_str = ", ".join(p.upper() for p in platforms)
     tone_section = f"\n\nADDITIONAL TONE NOTES: {tone_notes}" if tone_notes else ""
@@ -231,7 +231,7 @@ Only include the platforms that were requested. Return only valid JSON — no ma
     # Stream the response using adaptive thinking + effort:high for high-quality content.
     # The brand context system prompt has cache_control set so repeated calls are
     # served from the prompt cache at ~0.1x cost.
-    with client.messages.stream(
+    async with client.messages.stream(
         model="claude-opus-4-7",
         max_tokens=4096,
         thinking={"type": "adaptive"},
@@ -240,14 +240,14 @@ Only include the platforms that were requested. Return only valid JSON — no ma
             {
                 "type": "text",
                 "text": BRAND_CONTEXT,
-                "cache_control": {"type": "ephemeral"},  # cache the large brand context
+                "cache_control": {"type": "ephemeral"},
             }
         ],
         messages=[
             {"role": "user", "content": user_prompt}
         ],
     ) as stream:
-        final_message = stream.get_final_message()
+        final_message = await stream.get_final_message()
 
     # Extract text content from the response
     raw_text = ""

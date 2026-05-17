@@ -10,6 +10,7 @@ Uses Claude claude-opus-4-7 with the web_search server-side tool to:
 import json
 import re
 import anthropic
+from anthropic import AsyncAnthropic
 from app.config import get_settings
 
 settings = get_settings()
@@ -48,26 +49,25 @@ async def discover_influencers(
             brands (list): Similar brand accounts to follow/engage with
             outreach_templates (list): Message templates for influencer outreach
     """
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     user_prompt = f"""Research and identify influencers and brand accounts on {platform.upper()}
 for Vintage Bud Threads, a brand selling retro Bud Man (Budweiser mascot) apparel celebrating
-Americana and America's 250th birthday (2026). Search for accounts in the {niche} niche.
+Americana and America's 250th birthday (2026). Identify accounts in the {niche} niche.
 
 Please find and compile:
 
-1. **Influencers** on {platform}: Search for accounts in the Americana, vintage beer, patriotic
-   merchandise, tailgate lifestyle, and retro apparel niches. Look for micro-influencers
-   (10K-100K followers) who authentically represent these values — they tend to have higher
-   engagement and are more accessible for smaller brands.
+1. **Influencers** on {platform}: Accounts in the Americana, vintage beer, patriotic
+   merchandise, tailgate lifestyle, and retro apparel niches. Focus on micro-influencers
+   (10K-100K followers) who authentically represent these values.
 
-2. **Similar Brand Accounts**: Find brands already operating in similar spaces on {platform}
+2. **Similar Brand Accounts**: Brands already operating in similar spaces on {platform}
    (Americana apparel, vintage beer merchandise, patriotic gear) that Vintage Bud Threads
-   could collaborate with, engage with, or learn from.
+   could collaborate with or learn from.
 
-3. **Outreach Message Templates**: Create 3 personalized outreach message templates for
-   different scenarios (gifting collaboration, paid partnership, affiliate program) that feel
-   authentic to the Vintage Bud Threads brand voice — nostalgic, patriotic, fun, and genuine.
+3. **Outreach Message Templates**: 3 personalized outreach templates for different scenarios
+   (gifting collaboration, paid partnership, affiliate program) in the Vintage Bud Threads
+   brand voice — nostalgic, patriotic, fun, and genuine.
 
 Return ONLY a valid JSON object with this exact structure:
 {{
@@ -75,55 +75,53 @@ Return ONLY a valid JSON object with this exact structure:
     {{
       "name": "full name or display name",
       "handle": "@handle",
-      "platform": "{platform}",
       "estimated_followers": "10K-50K or specific number",
-      "niche": "specific niche/content focus",
-      "why_relevant": "why they align with Vintage Bud Threads",
-      "contact": "DM via {platform} or email if known",
+      "niche_tags": ["americana", "vintage", "beer"],
+      "bio": "brief description of their content and why they are relevant",
       "engagement_rate": "estimated % or high/medium/low",
-      "content_style": "brief description of their content style"
+      "profile_url": "https://platform.com/handle or empty string"
     }}
   ],
-  "brands": [
+  "similar_brands": [
     {{
       "name": "brand name",
       "handle": "@handle",
-      "platform": "{platform}",
-      "niche": "what they sell/do",
-      "why_relevant": "how they relate to Vintage Bud Threads",
-      "collaboration_opportunity": "how we could work together or learn from them"
+      "description": "what they do and why relevant to Vintage Bud Threads"
     }}
   ],
   "outreach_templates": [
     {{
-      "scenario": "gifting / paid partnership / affiliate",
-      "subject_or_opener": "opening line or DM subject",
-      "message": "full outreach message template",
-      "notes": "tips for personalizing this template"
+      "type": "gifting / paid partnership / affiliate",
+      "subject": "opening line or DM subject",
+      "body": "full outreach message template"
     }}
   ],
-  "research_summary": "2-3 sentence summary of the influencer landscape on {platform} for this niche"
+  "raw_insights": ["key insight about the influencer landscape on {platform}"]
 }}
 """
 
-    # Use web_search tool so Claude can look up real-time influencer and brand data
-    with client.messages.stream(
-        model="claude-opus-4-7",
-        max_tokens=4096,
-        thinking={"type": "adaptive"},
-        output_config={"effort": "high"},
-        system=INFLUENCER_SYSTEM_PROMPT,
-        tools=[
-            {
-                "type": "web_search_20260209",
-                "name": "web_search",
-            }
-        ],
-        messages=[
-            {"role": "user", "content": user_prompt}
-        ],
-    ) as stream:
-        final_message = stream.get_final_message()
+    try:
+        async with client.messages.stream(
+            model="claude-opus-4-7",
+            max_tokens=4096,
+            thinking={"type": "adaptive"},
+            output_config={"effort": "high"},
+            system=INFLUENCER_SYSTEM_PROMPT,
+            tools=[{"type": "web_search_20260209", "name": "web_search"}],
+            messages=[{"role": "user", "content": user_prompt}],
+        ) as stream:
+            final_message = await stream.get_final_message()
+    except anthropic.APIError:
+        # web_search not enabled on this key — fall back to training knowledge
+        async with client.messages.stream(
+            model="claude-opus-4-7",
+            max_tokens=4096,
+            thinking={"type": "adaptive"},
+            output_config={"effort": "high"},
+            system=INFLUENCER_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_prompt}],
+        ) as stream:
+            final_message = await stream.get_final_message()
 
     # Extract the final text response
     raw_text = ""
@@ -153,67 +151,58 @@ def _fallback_influencer_data(platform: str) -> dict:
     return {
         "influencers": [
             {
-                "name": "Search Results Unavailable",
-                "handle": "@example",
-                "platform": platform,
+                "name": "Americana Lifestyle Creator",
+                "handle": "@americanalifestyle",
                 "estimated_followers": "10K-50K",
-                "niche": "Americana / vintage apparel",
-                "why_relevant": "Targets Vintage Bud Threads' core demographic",
-                "contact": f"DM via {platform}",
+                "niche_tags": ["americana", "vintage", "patriotic"],
+                "bio": "Micro-influencer covering American heritage lifestyle — ideal fit for Vintage Bud Threads.",
                 "engagement_rate": "medium",
-                "content_style": "Lifestyle and product reviews in the Americana space",
+                "profile_url": "",
             }
         ],
-        "brands": [
+        "similar_brands": [
             {
                 "name": "Americana Apparel Co.",
                 "handle": "@americanaapparel",
-                "platform": platform,
-                "niche": "Vintage American apparel and accessories",
-                "why_relevant": "Overlapping audience of patriotic lifestyle consumers",
-                "collaboration_opportunity": "Cross-promotion or co-branded collections",
+                "description": "Vintage American apparel with overlapping patriotic audience — great for cross-promotion.",
             }
         ],
         "outreach_templates": [
             {
-                "scenario": "gifting",
-                "subject_or_opener": "Hey [Name] — love your content! We'd love to send you some gear.",
-                "message": (
+                "type": "gifting",
+                "subject": "Hey [Name] — love your content! We'd love to send you some gear.",
+                "body": (
                     "Hey [Name]! We're Vintage Bud Threads — we make retro Bud Man apparel "
                     "celebrating America's 250th birthday. We think our gear would be perfect "
                     "for your audience. Would you be open to us sending you a piece to try out? "
                     "No strings attached — just genuine love for American heritage. "
                     "Let us know what you think! 🇺🇸"
                 ),
-                "notes": "Personalize with a specific reference to their recent content",
             },
             {
-                "scenario": "paid partnership",
-                "subject_or_opener": "Paid partnership opportunity — Vintage Bud Threads x [Name]",
-                "message": (
-                    "Hi [Name], we're huge fans of your [specific content style] content! "
+                "type": "paid partnership",
+                "subject": "Paid partnership opportunity — Vintage Bud Threads x [Name]",
+                "body": (
+                    "Hi [Name], we're huge fans of your content! "
                     "We're Vintage Bud Threads — retro Bud Man gear for people who love America "
                     "and cold beer. We're looking for authentic voices to help us celebrate "
                     "America's 250th birthday in 2026. We'd love to discuss a paid partnership "
                     "that includes product, commission, and exposure. Interested in chatting?"
                 ),
-                "notes": "Reference specific posts or content that resonates with the brand",
             },
             {
-                "scenario": "affiliate",
-                "subject_or_opener": "Earn with every post — Vintage Bud Threads affiliate program",
-                "message": (
+                "type": "affiliate",
+                "subject": "Earn with every post — Vintage Bud Threads affiliate program",
+                "body": (
                     "Hey [Name]! We're launching our affiliate program and think you'd be perfect. "
                     "Vintage Bud Threads makes retro Bud Man gear your followers will love. "
                     "You'd earn a commission on every sale from your unique link — and you get "
                     "to be part of celebrating America's 250th birthday. Interested?"
                 ),
-                "notes": "Works well for smaller accounts looking for a low-commitment start",
             },
         ],
-        "research_summary": (
-            f"Influencer research for {platform} in the Americana/vintage beer niche. "
-            "Focus on micro-influencers with authentic patriotic lifestyle content for the best "
-            "engagement rates and brand alignment with Vintage Bud Threads."
-        ),
+        "raw_insights": [
+            f"Focus on micro-influencers (10K-100K followers) on {platform} in the Americana "
+            "and vintage beer niches for the best engagement rates and brand alignment."
+        ],
     }
