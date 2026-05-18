@@ -15,7 +15,7 @@ import hashlib
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -139,3 +139,54 @@ async def shopify_test():
         }
     except Exception as e:
         return {"error": str(e), "type": type(e).__name__}
+
+
+@router.get("/debug")
+async def shopify_debug(db: AsyncSession = Depends(get_db)):
+    """
+    Diagnostic endpoint: shows which token will be used for sync, calls Shopify
+    with status=any to count all products, and reports local DB product count.
+    """
+    from app.models.product import Product as ProductModel
+
+    # Determine which token sync will use
+    token_source = "env"
+    access_token = settings.shopify_access_token
+    if not access_token:
+        token_source = "db"
+        result = await db.execute(select(Setting).where(Setting.key == "shopify_access_token"))
+        setting = result.scalar_one_or_none()
+        access_token = setting.value if setting else ""
+
+    if not access_token:
+        return {"error": "No Shopify access token configured.", "token_source": None}
+
+    store = settings.shopify_store_domain
+    token_display = (access_token[:6] + "..." + access_token[-4:]) if len(access_token) > 10 else f"({len(access_token)} chars)"
+
+    # Count products already in local DB
+    count_result = await db.execute(select(func.count()).select_from(ProductModel))
+    local_count = count_result.scalar()
+
+    # Call Shopify with status=any
+    shopify_info: dict = {}
+    try:
+        url = f"https://{store}/admin/api/2024-01/products.json?limit=10&status=any"
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, headers={"X-Shopify-Access-Token": access_token})
+        shopify_info = {
+            "status_code": resp.status_code,
+            "product_count_in_first_page": len(resp.json().get("products", [])) if resp.status_code == 200 else 0,
+            "sample_titles": [p.get("title") for p in resp.json().get("products", [])[:5]] if resp.status_code == 200 else [],
+            "error": None if resp.status_code == 200 else resp.text[:300],
+        }
+    except Exception as e:
+        shopify_info = {"error": str(e)}
+
+    return {
+        "store": store,
+        "token_source": token_source,
+        "token": token_display,
+        "local_db_products": local_count,
+        "shopify": shopify_info,
+    }
