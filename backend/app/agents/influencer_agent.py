@@ -102,10 +102,8 @@ Return ONLY a valid JSON object with this exact structure:
 
     try:
         async with client.messages.stream(
-            model="claude-opus-4-7",
+            model="claude-sonnet-4-6",
             max_tokens=4096,
-            thinking={"type": "adaptive"},
-            output_config={"effort": "high"},
             system=INFLUENCER_SYSTEM_PROMPT,
             tools=[{"type": "web_search_20260209", "name": "web_search"}],
             messages=[{"role": "user", "content": user_prompt}],
@@ -114,10 +112,8 @@ Return ONLY a valid JSON object with this exact structure:
     except anthropic.APIError:
         # web_search not enabled on this key — fall back to training knowledge
         async with client.messages.stream(
-            model="claude-opus-4-7",
+            model="claude-sonnet-4-6",
             max_tokens=4096,
-            thinking={"type": "adaptive"},
-            output_config={"effort": "high"},
             system=INFLUENCER_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],
         ) as stream:

@@ -10,6 +10,7 @@ Endpoints:
   GET  /api/agents/discover-influencers — find relevant influencers and brands
 """
 
+import asyncio
 import json
 import uuid
 from typing import AsyncGenerator
@@ -67,14 +68,18 @@ async def _generate_content_events(
     yield f"data: {json.dumps({'type': 'progress', 'message': 'Generating content with Claude...'})}\n\n"
 
     try:
-        result = await generate_post_content(
+        task = asyncio.create_task(generate_post_content(
             product_title=product_title,
             product_description=product_description,
             product_price=product_price,
             platforms=platforms,
             media_type=media_type,
             tone_notes=tone_notes,
-        )
+        ))
+        while not task.done():
+            yield ": heartbeat\n\n"
+            await asyncio.sleep(8)
+        result = task.result()
 
         yield f"data: {json.dumps({'type': 'result', 'data': result})}\n\n"
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
@@ -91,7 +96,11 @@ async def _research_trends_events(
     yield f"data: {json.dumps({'type': 'progress', 'message': f'Researching trends on {platform}...'})}\n\n"
 
     try:
-        result = await research_trends(platform=platform, niche=niche)
+        task = asyncio.create_task(research_trends(platform=platform, niche=niche))
+        while not task.done():
+            yield ": heartbeat\n\n"
+            await asyncio.sleep(8)
+        result = task.result()
 
         # Normalize to TrendResults shape (handles both old and new field names)
         normalized: dict = {
@@ -144,7 +153,11 @@ async def _discover_influencers_events(
     yield f"data: {json.dumps({'type': 'progress', 'message': f'Finding influencers on {platform}...'})}\n\n"
 
     try:
-        result = await discover_influencers(platform=platform, niche=niche)
+        task = asyncio.create_task(discover_influencers(platform=platform, niche=niche))
+        while not task.done():
+            yield ": heartbeat\n\n"
+            await asyncio.sleep(8)
+        result = task.result()
 
         # Normalize to InfluencerResults shape (handles both old and new field names)
         normalized: dict = {
