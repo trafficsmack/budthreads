@@ -202,7 +202,7 @@ async def shopify_debug(db: AsyncSession = Depends(get_db)):
             )
             # Fetch products list
             prod_resp = await client.get(
-                f"https://{store}/admin/api/2025-01/products.json?limit=10&status=any",
+                f"https://{store}/admin/api/2025-01/products.json?limit=10",
                 headers={"X-Shopify-Access-Token": access_token},
             )
         shopify_info = {
