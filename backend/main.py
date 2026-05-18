@@ -70,6 +70,11 @@ app.include_router(research.router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
+@app.get("/", tags=["system"])
+async def root():
+    return {"name": "Vintage Bud Threads API", "status": "ok"}
+
+
 @app.get("/health", tags=["system"])
 async def health_check():
     """
