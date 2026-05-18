@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import computed_field
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,6 +53,11 @@ class ProductOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @computed_field
+    @property
+    def image_url(self) -> str:
+        return self.image_urls[0] if self.image_urls else ""
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────

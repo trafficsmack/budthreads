@@ -6,6 +6,7 @@ export interface Product {
   description: string;
   price: string;
   image_url: string;
+  image_urls: string[];
   shopify_id: string;
   variants?: ProductVariant[];
 }
