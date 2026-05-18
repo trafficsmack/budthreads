@@ -104,6 +104,22 @@ async def shopify_callback(
     return RedirectResponse(f"{settings.frontend_url}?shopify=connected")
 
 
+@router.get("/token")
+async def get_token(db: AsyncSession = Depends(get_db)):
+    """Return the stored token so it can be copied to SHOPIFY_ACCESS_TOKEN in Railway."""
+    token = settings.shopify_access_token
+    if not token:
+        result = await db.execute(select(Setting).where(Setting.key == "shopify_access_token"))
+        setting = result.scalar_one_or_none()
+        token = setting.value if setting else ""
+    if not token:
+        return {"token": None, "instructions": "No token found. Run OAuth first via /api/shopify/auth"}
+    return {
+        "token": token,
+        "instructions": "Copy this value and add it as SHOPIFY_ACCESS_TOKEN in Railway env vars. Then redeploy.",
+    }
+
+
 @router.get("/status")
 async def shopify_status(db: AsyncSession = Depends(get_db)):
     """Return whether Shopify is connected (token exists in DB or env)."""
