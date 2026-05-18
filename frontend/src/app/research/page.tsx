@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   TrendingUp,
   Copy,
@@ -129,6 +129,15 @@ function Section({
 
 export default function ResearchPage() {
   const [activePlatform, setActivePlatform] = useState<Platform>("instagram");
+
+  useEffect(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    console.log("[Research] API URL:", apiUrl);
+    fetch(`${apiUrl}/health`)
+      .then(r => r.json())
+      .then(d => console.log("[Research] /health OK:", d))
+      .catch(e => console.error("[Research] /health FAILED:", e.message));
+  }, []);
   const [researching, setResearching] = useState(false);
   const [streamMessages, setStreamMessages] = useState<string[]>([]);
   const [results, setResults] = useState<TrendResults | null>(null);
@@ -200,8 +209,10 @@ export default function ResearchPage() {
           break;
         }
       }
-    } catch {
-      toast("error", "Connection Error", "Could not reach the research agent.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[Research] connection error:", msg);
+      toast("error", "Connection Error", msg);
 
       // Demo data for when API is unavailable
       setResults({
