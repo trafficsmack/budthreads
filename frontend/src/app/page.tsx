@@ -95,6 +95,7 @@ export default function DashboardPage() {
   const {
     data: products,
     isLoading: productsLoading,
+    mutate: mutateProducts,
   } = useSWR(`${API_URL}/api/products`, fetcher);
 
   function handleConnectShopify() {
@@ -109,6 +110,7 @@ export default function DashboardPage() {
         handleConnectShopify();
         return;
       }
+      mutateProducts();
       toast("success", "Shopify Synced", `${result.synced ?? 0} products synced.`);
     } catch {
       toast("error", "Sync Failed", "Could not connect to Shopify.");

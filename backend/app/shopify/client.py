@@ -98,8 +98,7 @@ async def get_products(limit: int = 50, access_token: str = "") -> list[dict]:
                 headers=_get_headers(access_token),
                 params={
                     "limit": min(limit, 250),
-                    "status": "active",
-                    "fields": "id,title,body_html,variants,images,tags,product_type",
+                    "fields": "id,title,body_html,variants,images,tags,product_type,status",
                 },
             )
             response.raise_for_status()
