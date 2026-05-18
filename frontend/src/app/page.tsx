@@ -104,9 +104,8 @@ export default function DashboardPage() {
   async function handleSyncShopify() {
     setSyncingShopify(true);
     try {
-      const result = await api.syncShopify();
+      const result = await api.syncShopify() as { synced?: number; message?: string; detail?: string };
       if (result.detail) {
-        // Not connected yet — prompt OAuth
         handleConnectShopify();
         return;
       }
