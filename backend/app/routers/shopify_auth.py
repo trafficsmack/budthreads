@@ -112,24 +112,27 @@ async def shopify_status(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/test")
-async def shopify_test(db: AsyncSession = Depends(get_db)):
+async def shopify_test():
     """Hit the Shopify API directly and return the raw response for debugging."""
-    access_token = settings.shopify_access_token
-    if not access_token:
-        result = await db.execute(select(Setting).where(Setting.key == "shopify_access_token"))
-        s = result.scalar_one_or_none()
-        access_token = s.value if s else ""
+    try:
+        access_token = settings.shopify_access_token
+        store = settings.shopify_store_domain
+        url = f"https://{store}/admin/api/2024-01/products.json?limit=3"
+        headers = {"X-Shopify-Access-Token": access_token}
 
-    store = settings.shopify_store_domain
-    url = f"https://{store}/admin/api/2024-01/products.json?limit=3"
-    headers = {"X-Shopify-Access-Token": access_token, "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, headers=headers)
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.get(url, headers=headers)
+        try:
+            body = resp.json()
+        except Exception:
+            body = resp.text
 
-    return {
-        "store": store,
-        "token_prefix": access_token[:8] + "..." if access_token else "MISSING",
-        "status_code": resp.status_code,
-        "response": resp.json() if resp.headers.get("content-type", "").startswith("application/json") else resp.text,
-    }
+        return {
+            "store": store,
+            "token_prefix": (access_token[:8] + "...") if len(access_token) > 8 else f"({len(access_token)} chars)",
+            "status_code": resp.status_code,
+            "response": body,
+        }
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
