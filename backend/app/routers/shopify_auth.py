@@ -179,15 +179,21 @@ async def shopify_debug(db: AsyncSession = Depends(get_db)):
             )
             granted_scopes = [s["handle"] for s in scopes_resp.json().get("access_scopes", [])] if scopes_resp.status_code == 200 else []
 
-            # Fetch products
+            # Fetch product count
+            count_resp = await client.get(
+                f"https://{store}/admin/api/2025-01/products/count.json",
+                headers={"X-Shopify-Access-Token": access_token},
+            )
+            # Fetch products list
             prod_resp = await client.get(
-                f"https://{store}/admin/api/2024-01/products.json?limit=10&status=any",
+                f"https://{store}/admin/api/2025-01/products.json?limit=10&status=any",
                 headers={"X-Shopify-Access-Token": access_token},
             )
         shopify_info = {
             "status_code": prod_resp.status_code,
             "granted_scopes": granted_scopes,
             "has_read_products_scope": "read_products" in granted_scopes,
+            "product_count_total": count_resp.json().get("count") if count_resp.status_code == 200 else f"error {count_resp.status_code}",
             "product_count_in_first_page": len(prod_resp.json().get("products", [])) if prod_resp.status_code == 200 else 0,
             "sample_titles": [p.get("title") for p in prod_resp.json().get("products", [])[:5]] if prod_resp.status_code == 200 else [],
             "error": None if prod_resp.status_code == 200 else prod_resp.text[:300],

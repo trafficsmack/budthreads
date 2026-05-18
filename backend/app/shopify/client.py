@@ -18,7 +18,7 @@ from app.config import get_settings
 
 settings = get_settings()
 
-SHOPIFY_API_VERSION = "2024-01"
+SHOPIFY_API_VERSION = "2025-01"
 
 
 def is_configured(access_token: str = "") -> bool:
