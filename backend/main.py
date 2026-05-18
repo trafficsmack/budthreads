@@ -45,9 +45,18 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
+_cors_origins = [
+    settings.frontend_url,
+    "http://localhost:3000",
+    "http://localhost:3001",
+]
+# Accept any Vercel preview/production URL automatically
+_cors_origin_regex = r"https://.*\.vercel\.app"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:3000", "http://localhost:3001"],
+    allow_origins=_cors_origins,
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
