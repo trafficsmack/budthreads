@@ -21,14 +21,15 @@ settings = get_settings()
 SHOPIFY_API_VERSION = "2024-01"
 
 
-def is_configured() -> bool:
-    """Check if Shopify API credentials are configured."""
-    return bool(settings.shopify_store_domain and settings.shopify_access_token)
+def is_configured(access_token: str = "") -> bool:
+    token = access_token or settings.shopify_access_token
+    return bool(settings.shopify_store_domain and token)
 
 
-def _get_headers() -> dict:
+def _get_headers(access_token: str = "") -> dict:
+    token = access_token or settings.shopify_access_token
     return {
-        "X-Shopify-Access-Token": settings.shopify_access_token,
+        "X-Shopify-Access-Token": token,
         "Content-Type": "application/json",
     }
 
@@ -75,25 +76,26 @@ def _parse_product(raw: dict) -> dict:
     }
 
 
-async def get_products(limit: int = 50) -> list[dict]:
+async def get_products(limit: int = 50, access_token: str = "") -> list[dict]:
     """
     Fetch all published products from the Shopify store.
 
     Args:
         limit: Max products to return per page (Shopify max is 250)
+        access_token: Override token (falls back to env var)
 
     Returns:
         List of normalized product dicts. Returns empty list if not configured
         or if the API call fails.
     """
-    if not is_configured():
+    if not is_configured(access_token):
         return []
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             response = await client.get(
                 f"{_api_base()}/products.json",
-                headers=_get_headers(),
+                headers=_get_headers(access_token),
                 params={
                     "limit": min(limit, 250),
                     "status": "active",

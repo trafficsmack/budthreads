@@ -21,7 +21,8 @@ from app.config import get_settings
 from app.database import init_db, get_db
 from app.models.post import Post, PostStatus
 from app.models.product import Product
-from app.routers import products, posts, agents, research
+from app.models.setting import Setting  # noqa: F401 — registers table with Base
+from app.routers import products, posts, agents, research, shopify_auth
 
 settings = get_settings()
 
@@ -67,6 +68,7 @@ app.include_router(products.router)
 app.include_router(posts.router)
 app.include_router(agents.router)
 app.include_router(research.router)
+app.include_router(shopify_auth.router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

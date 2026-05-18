@@ -97,10 +97,19 @@ export default function DashboardPage() {
     isLoading: productsLoading,
   } = useSWR(`${API_URL}/api/products`, fetcher);
 
+  function handleConnectShopify() {
+    window.location.href = `${API_URL}/api/shopify/auth`;
+  }
+
   async function handleSyncShopify() {
     setSyncingShopify(true);
     try {
       const result = await api.syncShopify();
+      if (result.detail) {
+        // Not connected yet — prompt OAuth
+        handleConnectShopify();
+        return;
+      }
       toast("success", "Shopify Synced", `${result.synced ?? 0} products synced.`);
     } catch {
       toast("error", "Sync Failed", "Could not connect to Shopify.");

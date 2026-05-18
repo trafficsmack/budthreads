@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.product import Product
+from app.models.setting import Setting
 from app.shopify.client import get_products as shopify_get_products, is_configured as shopify_is_configured
 
 router = APIRouter(prefix="/api/products", tags=["products"])
@@ -71,19 +72,25 @@ async def sync_products_from_shopify(db: AsyncSession = Depends(get_db)):
     If SHOPIFY_ACCESS_TOKEN is not configured, returns a 400 with setup instructions.
     Existing products are matched by shopify_id and updated; new ones are inserted.
     """
-    if not shopify_is_configured():
+    # Token from env takes priority; fall back to DB-stored OAuth token
+    from app.config import get_settings as _settings
+    access_token = _settings().shopify_access_token
+    if not access_token:
+        result = await db.execute(select(Setting).where(Setting.key == "shopify_access_token"))
+        setting = result.scalar_one_or_none()
+        access_token = setting.value if setting else ""
+
+    if not shopify_is_configured(access_token):
         raise HTTPException(
             status_code=400,
             detail=(
-                "Shopify API not configured. Set SHOPIFY_STORE_DOMAIN and "
-                "SHOPIFY_ACCESS_TOKEN in your .env file. "
-                "Create a custom app at https://admin.shopify.com and grant "
-                "the read_products scope."
+                "Shopify not connected. Use the Connect Shopify button "
+                "on the dashboard to authorize access."
             ),
         )
 
     try:
-        shopify_products = await shopify_get_products(limit=250)
+        shopify_products = await shopify_get_products(limit=250, access_token=access_token)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 

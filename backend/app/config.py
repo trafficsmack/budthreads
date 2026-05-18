@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     tiktok_access_token: str = ""
     shopify_store_domain: str = "vintagebudthreads.myshopify.com"
     shopify_access_token: str = ""
+    shopify_client_id: str = ""
+    shopify_client_secret: str = ""
     database_url: str = "sqlite+aiosqlite:///./budthreads.db"
     frontend_url: str = "http://localhost:3000"
 
