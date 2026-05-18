@@ -171,14 +171,26 @@ async def shopify_debug(db: AsyncSession = Depends(get_db)):
     # Call Shopify with status=any
     shopify_info: dict = {}
     try:
-        url = f"https://{store}/admin/api/2024-01/products.json?limit=10&status=any"
         async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(url, headers={"X-Shopify-Access-Token": access_token})
+            # Check granted scopes
+            scopes_resp = await client.get(
+                f"https://{store}/admin/oauth/access_scopes.json",
+                headers={"X-Shopify-Access-Token": access_token},
+            )
+            granted_scopes = [s["handle"] for s in scopes_resp.json().get("access_scopes", [])] if scopes_resp.status_code == 200 else []
+
+            # Fetch products
+            prod_resp = await client.get(
+                f"https://{store}/admin/api/2024-01/products.json?limit=10&status=any",
+                headers={"X-Shopify-Access-Token": access_token},
+            )
         shopify_info = {
-            "status_code": resp.status_code,
-            "product_count_in_first_page": len(resp.json().get("products", [])) if resp.status_code == 200 else 0,
-            "sample_titles": [p.get("title") for p in resp.json().get("products", [])[:5]] if resp.status_code == 200 else [],
-            "error": None if resp.status_code == 200 else resp.text[:300],
+            "status_code": prod_resp.status_code,
+            "granted_scopes": granted_scopes,
+            "has_read_products_scope": "read_products" in granted_scopes,
+            "product_count_in_first_page": len(prod_resp.json().get("products", [])) if prod_resp.status_code == 200 else 0,
+            "sample_titles": [p.get("title") for p in prod_resp.json().get("products", [])[:5]] if prod_resp.status_code == 200 else [],
+            "error": None if prod_resp.status_code == 200 else prod_resp.text[:300],
         }
     except Exception as e:
         shopify_info = {"error": str(e)}
