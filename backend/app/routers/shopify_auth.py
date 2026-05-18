@@ -33,7 +33,10 @@ def _redirect_uri() -> str:
 
 
 def _callback_uri(request: Request) -> str:
-    base = str(request.base_url).rstrip("/")
+    # Prefer explicit BACKEND_URL env var (avoids http vs https mismatch behind proxies)
+    if settings.backend_url:
+        return f"{settings.backend_url.rstrip('/')}/api/shopify/callback"
+    base = str(request.base_url).rstrip("/").replace("http://", "https://")
     return f"{base}/api/shopify/callback"
 
 

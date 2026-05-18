@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     shopify_client_secret: str = ""
     database_url: str = "sqlite+aiosqlite:///./budthreads.db"
     frontend_url: str = "http://localhost:3000"
+    backend_url: str = ""
 
     class Config:
         env_file = ".env"
