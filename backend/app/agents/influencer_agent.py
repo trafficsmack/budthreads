@@ -12,55 +12,19 @@ from app.config import get_settings
 
 settings = get_settings()
 
-INFLUENCER_SYSTEM_PROMPT = """You are an influencer marketing strategist for Vintage Bud Threads
-(vintagebudthreads.com), a brand selling retro Bud Man (Budweiser mascot) apparel and gear
-celebrating Americana and America's 250th birthday.
-
-Identify relevant influencers and brand accounts in the Americana, vintage beer, patriotic
-merchandise, tailgate, and retro apparel spaces. Provide realistic, actionable recommendations.
-
-Return ONLY valid JSON — no markdown, no code fences, no extra text."""
+INFLUENCER_SYSTEM_PROMPT = "You are an influencer marketing strategist for Vintage Bud Threads (vintagebudthreads.com), selling retro Bud Man apparel celebrating Americana and America's 250th birthday. Return ONLY valid JSON with no markdown or code fences."
 
 
 async def discover_influencers(
     platform: str,
     niche: str = "americana vintage beer patriotic merchandise",
 ) -> dict:
-    user_prompt = f"""Identify influencers and brand accounts on {platform.upper()} for
-Vintage Bud Threads, a brand selling retro Bud Man apparel celebrating Americana and
-America's 250th birthday (2026). Focus on the {niche} niche.
+    user_prompt = f"""Influencer research for {platform.upper()} — Vintage Bud Threads (retro Bud Man apparel, Americana, America's 250th birthday 2026). Niche: {niche}.
 
-Return ONLY this JSON (no markdown, no code blocks):
-{{
-  "influencers": [
-    {{
-      "name": "Creator Name",
-      "handle": "@handle",
-      "estimated_followers": "25K",
-      "niche_tags": ["americana", "vintage"],
-      "bio": "Why they are relevant to Vintage Bud Threads",
-      "engagement_rate": "high",
-      "profile_url": ""
-    }}
-  ],
-  "similar_brands": [
-    {{
-      "name": "Brand Name",
-      "handle": "@handle",
-      "description": "What they do and why relevant"
-    }}
-  ],
-  "outreach_templates": [
-    {{
-      "type": "gifting",
-      "subject": "Opening line",
-      "body": "Full outreach message"
-    }}
-  ],
-  "raw_insights": ["Key insight about {platform} influencer landscape for this niche"]
-}}
+Return ONLY JSON (no markdown):
+{{"influencers":[{{"name":"string","handle":"@string","estimated_followers":"string","niche_tags":["string"],"bio":"string","engagement_rate":"high|medium|low","profile_url":""}}],"similar_brands":[{{"name":"string","handle":"@string","description":"string"}}],"outreach_templates":[{{"type":"gifting|paid partnership|affiliate","subject":"string","body":"string"}}],"raw_insights":["string"]}}
 
-Include 5-8 influencers, 3-4 similar brands, and 3 outreach templates (gifting, paid partnership, affiliate)."""
+Include: 6 influencers, 3 brands, 3 outreach templates."""
 
     response = await AsyncAnthropic(api_key=settings.anthropic_api_key).messages.create(
         model="claude-sonnet-4-6",

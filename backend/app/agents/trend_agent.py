@@ -13,47 +13,19 @@ from app.config import get_settings
 
 settings = get_settings()
 
-TREND_SYSTEM_PROMPT = """You are a social media trend researcher for Vintage Bud Threads
-(vintagebudthreads.com), a brand selling retro Bud Man (Budweiser mascot) apparel and gear
-celebrating Americana and America's 250th birthday.
-
-Provide actionable, specific recommendations for hashtags, content formats, and upcoming
-relevant dates. Focus on the Americana, patriotic, vintage beer, and retro apparel niches.
-
-Return ONLY valid JSON — no markdown, no code fences, no extra text."""
+TREND_SYSTEM_PROMPT = "You are a social media trend researcher for Vintage Bud Threads (vintagebudthreads.com), selling retro Bud Man (Budweiser mascot) apparel celebrating Americana and America's 250th birthday. Return ONLY valid JSON with no markdown or code fences."
 
 
 async def research_trends(
     platform: str,
     niche: str = "americana vintage beer bud man",
 ) -> dict:
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    user_prompt = f"""Social media trends for {platform.upper()} — Vintage Bud Threads brand (retro Bud Man apparel, Americana, America's 250th birthday 2026).
 
-    user_prompt = f"""Give me social media trend research for {platform.upper()} for
-Vintage Bud Threads, a brand selling retro Bud Man (Budweiser mascot) apparel
-celebrating Americana and America's 250th birthday (2026).
+Return ONLY JSON (no markdown):
+{{"hashtags":[{{"tag":"string","estimated_reach":"broad|medium|niche","category":"string"}}],"content_trends":[{{"title":"string","description":"string","format":"Reel|Carousel|Photo|Story"}}],"upcoming_dates":[{{"date":"YYYY-MM-DD","name":"string","relevance":"string"}}],"content_tips":[{{"tip":"string","example":"string or null"}}],"raw_insights":["string"]}}
 
-Return ONLY this JSON structure (no markdown, no code blocks):
-{{
-  "hashtags": [
-    {{"tag": "VintageBudThreads", "estimated_reach": "niche", "category": "Brand"}},
-    {{"tag": "BudMan", "estimated_reach": "niche", "category": "Character"}},
-    {{"tag": "Americana", "estimated_reach": "broad", "category": "Lifestyle"}}
-  ],
-  "content_trends": [
-    {{"title": "Trend name", "description": "What it is and why it works", "format": "Reel/Carousel/Photo/Story"}}
-  ],
-  "upcoming_dates": [
-    {{"date": "2026-05-25", "name": "Memorial Day", "relevance": "How to use this for content"}}
-  ],
-  "content_tips": [
-    {{"tip": "Actionable tip", "example": "Brief example"}}
-  ],
-  "raw_insights": ["One key insight about {platform} for this niche"]
-}}
-
-Include 10-15 hashtags, 4 content trends, 4-6 upcoming dates (next 90 days from today May 2026), and 4 tips.
-All dates must be in YYYY-MM-DD format."""
+Include: 12 hashtags, 4 trends, 5 upcoming dates (May–Aug 2026), 4 tips."""
 
     response = await AsyncAnthropic(api_key=settings.anthropic_api_key).messages.create(
         model="claude-sonnet-4-6",
