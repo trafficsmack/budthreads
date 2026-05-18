@@ -20,15 +20,14 @@ export interface ProductVariant {
 
 export interface Post {
   id: string;
-  product_id: string;
+  product_id?: string | null;
   platform: "instagram" | "facebook" | "tiktok";
   caption: string;
   hashtags: string[];
   status: "draft" | "scheduled" | "published" | "failed";
-  scheduled_at?: string;
-  published_at?: string;
+  scheduled_at?: string | null;
+  published_at?: string | null;
   created_at: string;
-  updated_at: string;
   media_urls?: string[];
 }
 
@@ -91,6 +90,11 @@ export const api = {
 
   publishPost: (id: string): Promise<Post> =>
     fetch(`${API_URL}/api/posts/${id}/publish`, { method: "POST" }).then((r) =>
+      r.json()
+    ),
+
+  approvePost: (id: string): Promise<Post> =>
+    fetch(`${API_URL}/api/posts/${id}/approve`, { method: "POST" }).then((r) =>
       r.json()
     ),
 

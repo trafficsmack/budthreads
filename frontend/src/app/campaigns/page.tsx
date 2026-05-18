@@ -16,8 +16,12 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  X,
 } from "lucide-react";
-import { api, Post } from "@/lib/api";
+import { api, Post, streamAgentResponse } from "@/lib/api";
 import PlatformBadge from "@/components/PlatformBadge";
 import { toast } from "@/components/Toaster";
 import { cn } from "@/lib/utils";
@@ -62,14 +66,18 @@ function StatusBadge({ status }: { status: Post["status"] }) {
 function PostCard({
   post,
   onPublish,
+  onApprove,
   onDelete,
   publishingId,
+  approvingId,
   deletingId,
 }: {
   post: Post;
   onPublish: (id: string) => void;
+  onApprove: (id: string) => void;
   onDelete: (id: string) => void;
   publishingId: string | null;
+  approvingId: string | null;
   deletingId: string | null;
 }) {
   return (
@@ -131,9 +139,12 @@ function PostCard({
                 })}
               </p>
             )}
-            {post.scheduled_at && post.status === "scheduled" && (
-              <p className="text-xs text-yellow-600">
-                · Scheduled for{" "}
+            {post.scheduled_at && (post.status === "scheduled" || post.status === "draft") && (
+              <p className={cn(
+                "text-xs",
+                post.status === "scheduled" ? "text-yellow-600" : "text-navy/40"
+              )}>
+                · {post.status === "scheduled" ? "Scheduled" : "Proposed"} for{" "}
                 {new Date(post.scheduled_at).toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
@@ -147,19 +158,34 @@ function PostCard({
 
         {/* Actions */}
         <div className="flex flex-col gap-2 flex-shrink-0">
+          {post.status === "draft" && post.scheduled_at && (
+            <button
+              onClick={() => onApprove(post.id)}
+              disabled={approvingId === post.id}
+              className="btn-primary py-1.5 px-3 text-xs bg-green-600 hover:bg-green-700 border-green-600 hover:border-green-700"
+              title="Approve — schedules this post for publishing"
+            >
+              {approvingId === post.id ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              )}
+              Approve
+            </button>
+          )}
           {(post.status === "draft" || post.status === "failed") && (
             <button
               onClick={() => onPublish(post.id)}
               disabled={publishingId === post.id}
               className="btn-primary py-1.5 px-3 text-xs"
-              title="Publish"
+              title="Publish now"
             >
               {publishingId === post.id ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <Send className="w-3.5 h-3.5" />
               )}
-              Publish
+              Publish Now
             </button>
           )}
           <button
@@ -185,7 +211,15 @@ export default function CampaignsPage() {
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Campaign generation state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateLogs, setGenerateLogs] = useState<string[]>([]);
+  const [generateDone, setGenerateDone] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [showLogs, setShowLogs] = useState(true);
 
   const queryParams = new URLSearchParams();
   if (statusFilter !== "all") queryParams.set("status", statusFilter);
@@ -197,6 +231,52 @@ export default function CampaignsPage() {
     fetcher,
     { refreshInterval: 30000 }
   );
+
+  async function handleGenerateCampaign() {
+    setIsGenerating(true);
+    setGenerateLogs([]);
+    setGenerateDone(false);
+    setGenerateError(null);
+    setShowLogs(true);
+
+    try {
+      for await (const event of streamAgentResponse("/api/agents/generate-campaign", {
+        max_products: 5,
+        platforms: ["instagram", "facebook", "tiktok"],
+      })) {
+        if (event.type === "progress" && event.message) {
+          setGenerateLogs((prev) => [...prev, event.message!]);
+        } else if (event.type === "done") {
+          setGenerateLogs((prev) => [...prev, event.message || "Campaign ready!"]);
+          setGenerateDone(true);
+          mutate();
+          toast("success", "Campaign Generated", "Draft posts are ready for review.");
+        } else if (event.type === "error") {
+          setGenerateError(event.message || "Campaign generation failed.");
+          toast("error", "Generation Failed", event.message || "An error occurred.");
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setGenerateError(msg);
+      toast("error", "Generation Failed", msg);
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  async function handleApprove(postId: string) {
+    setApprovingId(postId);
+    try {
+      await api.approvePost(postId);
+      toast("success", "Post Approved", "Scheduled for publishing at the proposed time.");
+      mutate();
+    } catch {
+      toast("error", "Approval Failed", "Could not approve the post.");
+    } finally {
+      setApprovingId(null);
+    }
+  }
 
   async function handlePublish(postId: string) {
     setPublishingId(postId);
@@ -256,12 +336,84 @@ export default function CampaignsPage() {
           >
             <RefreshCw className="w-4 h-4" />
           </button>
+          <button
+            onClick={handleGenerateCampaign}
+            disabled={isGenerating}
+            className="btn-secondary text-sm"
+            title="Let the AI generate posts for all your products"
+          >
+            {isGenerating ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {isGenerating ? "Generating..." : "Generate Campaign"}
+          </button>
           <Link href="/compose" className="btn-primary">
             <Plus className="w-4 h-4" />
             New Post
           </Link>
         </div>
       </div>
+
+      {/* Campaign generation progress panel */}
+      {(isGenerating || generateLogs.length > 0) && (
+        <div className={cn(
+          "mb-6 rounded-2xl border p-4",
+          generateError
+            ? "bg-red/5 border-red/20"
+            : generateDone
+            ? "bg-green-50 border-green-200"
+            : "bg-gold/10 border-gold/30"
+        )}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              {isGenerating ? (
+                <Loader2 className="w-4 h-4 animate-spin text-gold" />
+              ) : generateError ? (
+                <AlertCircle className="w-4 h-4 text-red" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
+              )}
+              <span className="text-sm font-semibold text-navy">
+                {isGenerating
+                  ? "Generating campaign posts..."
+                  : generateError
+                  ? "Generation failed"
+                  : "Campaign ready!"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowLogs((v) => !v)}
+                className="text-navy/40 hover:text-navy"
+              >
+                {showLogs ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              {!isGenerating && (
+                <button
+                  onClick={() => { setGenerateLogs([]); setGenerateDone(false); setGenerateError(null); }}
+                  className="text-navy/40 hover:text-navy"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+          {showLogs && (
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {generateLogs.map((log, i) => (
+                <p key={i} className="text-xs text-navy/60 font-mono">
+                  {log}
+                </p>
+              ))}
+              {generateError && (
+                <p className="text-xs text-red font-medium">{generateError}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Status filter tabs */}
       <div className="flex gap-1 mb-4 bg-cream-dark/50 rounded-xl p-1 overflow-x-auto">
@@ -390,8 +542,10 @@ export default function CampaignsPage() {
               key={post.id}
               post={post}
               onPublish={handlePublish}
+              onApprove={handleApprove}
               onDelete={handleDelete}
               publishingId={publishingId}
+              approvingId={approvingId}
               deletingId={deletingId}
             />
           ))}

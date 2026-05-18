@@ -165,6 +165,31 @@ async def update_post(
     return post
 
 
+@router.patch("/{post_id}", response_model=PostOut)
+async def patch_post(
+    post_id: str,
+    payload: PostUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Partial update — same behavior as PUT but accepts PATCH method."""
+    return await update_post(post_id, payload, db)
+
+
+@router.post("/{post_id}/approve", response_model=PostOut)
+async def approve_post(post_id: str, db: AsyncSession = Depends(get_db)):
+    """Approve a draft post: sets status to 'scheduled' so it will be published at scheduled_at."""
+    result = await db.execute(select(Post).where(Post.id == post_id))
+    post = result.scalar_one_or_none()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    if post.status != PostStatus.DRAFT.value:
+        raise HTTPException(status_code=400, detail="Only draft posts can be approved.")
+    post.status = PostStatus.SCHEDULED.value
+    await db.commit()
+    await db.refresh(post)
+    return post
+
+
 @router.delete("/{post_id}", status_code=204)
 async def delete_post(post_id: str, db: AsyncSession = Depends(get_db)):
     """Delete a post from the database."""
