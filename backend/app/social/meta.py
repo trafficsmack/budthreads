@@ -33,12 +33,13 @@ settings = get_settings()
 GRAPH_API_BASE = "https://graph.facebook.com/v21.0"
 
 
-def is_configured() -> bool:
-    """Check if Meta API credentials are configured."""
+def is_configured(credentials: dict | None = None) -> bool:
+    """Check if Meta API credentials are configured (env vars or supplied dict)."""
+    creds = credentials or {}
     return all([
-        settings.meta_access_token,
-        settings.meta_instagram_account_id,
-        settings.meta_facebook_page_id,
+        creds.get("access_token") or settings.meta_access_token,
+        creds.get("instagram_account_id") or settings.meta_instagram_account_id,
+        creds.get("facebook_page_id") or settings.meta_facebook_page_id,
     ])
 
 
@@ -47,6 +48,7 @@ async def post_to_instagram(
     hashtags: list[str],
     image_url: str,
     video_url: str | None = None,
+    credentials: dict | None = None,
 ) -> dict:
     """
     Post content to Instagram via the Meta Graph API.
@@ -64,21 +66,22 @@ async def post_to_instagram(
     Returns:
         dict with keys: success (bool), post_id (str | None), error (str | None)
     """
-    if not is_configured():
+    creds = credentials or {}
+    if not is_configured(creds):
         return {
             "success": False,
             "post_id": None,
             "error": (
-                "Meta API not configured. Set META_ACCESS_TOKEN, "
-                "META_INSTAGRAM_ACCOUNT_ID, and META_FACEBOOK_PAGE_ID in your .env file. "
-                "See app/social/meta.py for setup instructions."
+                "Meta API not configured. Add your credentials on the Settings page "
+                "or set META_ACCESS_TOKEN, META_INSTAGRAM_ACCOUNT_ID, and "
+                "META_FACEBOOK_PAGE_ID in your .env file."
             ),
         }
 
     hashtag_text = " ".join(hashtags) if hashtags else ""
     full_caption = f"{caption}\n\n{hashtag_text}".strip()
-    account_id = settings.meta_instagram_account_id
-    access_token = settings.meta_access_token
+    account_id = creds.get("instagram_account_id") or settings.meta_instagram_account_id
+    access_token = creds.get("access_token") or settings.meta_access_token
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
@@ -162,6 +165,7 @@ async def post_to_facebook(
     hashtags: list[str],
     image_url: str,
     video_url: str | None = None,
+    credentials: dict | None = None,
 ) -> dict:
     """
     Post content to a Facebook Page via the Meta Graph API.
@@ -177,21 +181,22 @@ async def post_to_facebook(
     Returns:
         dict with keys: success (bool), post_id (str | None), error (str | None)
     """
-    if not is_configured():
+    creds = credentials or {}
+    if not is_configured(creds):
         return {
             "success": False,
             "post_id": None,
             "error": (
-                "Meta API not configured. Set META_ACCESS_TOKEN, "
-                "META_INSTAGRAM_ACCOUNT_ID, and META_FACEBOOK_PAGE_ID in your .env file. "
-                "See app/social/meta.py for setup instructions."
+                "Meta API not configured. Add your credentials on the Settings page "
+                "or set META_ACCESS_TOKEN, META_INSTAGRAM_ACCOUNT_ID, and "
+                "META_FACEBOOK_PAGE_ID in your .env file."
             ),
         }
 
     hashtag_text = " ".join(hashtags) if hashtags else ""
     full_message = f"{caption}\n\n{hashtag_text}".strip()
-    page_id = settings.meta_facebook_page_id
-    access_token = settings.meta_access_token
+    page_id = creds.get("facebook_page_id") or settings.meta_facebook_page_id
+    access_token = creds.get("access_token") or settings.meta_access_token
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:

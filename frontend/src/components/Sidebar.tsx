@@ -68,7 +68,10 @@ export default function Sidebar() {
 
       {/* Bottom section */}
       <div className="px-3 py-4 border-t border-white/10">
-        <Link href="/settings" className="nav-link">
+        <Link
+          href="/settings"
+          className={pathname.startsWith("/settings") ? "nav-link-active" : "nav-link"}
+        >
           <Settings className="w-4 h-4 flex-shrink-0" strokeWidth={2} />
           <span>Settings</span>
         </Link>

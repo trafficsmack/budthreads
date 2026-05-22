@@ -19,8 +19,11 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.database import get_db
 from app.models.post import Post, PostStatus, Platform
+from app.models.setting import Setting
 from app.social.meta import post_to_instagram, post_to_facebook
 from app.social.tiktok import post_to_tiktok
 
@@ -235,6 +238,21 @@ async def publish_post(post_id: str, db: AsyncSession = Depends(get_db)):
     caption = post.caption
     hashtags: list[str] = post.hashtags or []
 
+    # Fetch Meta credentials from DB (fall back to env vars inside meta.py)
+    meta_creds: dict = {}
+    if platform in (Platform.INSTAGRAM.value, Platform.FACEBOOK.value):
+        key_map = {
+            "meta_access_token": "access_token",
+            "meta_instagram_account_id": "instagram_account_id",
+            "meta_facebook_page_id": "facebook_page_id",
+        }
+        rows = (
+            await db.execute(select(Setting).where(Setting.key.in_(key_map.keys())))
+        ).scalars().all()
+        for row in rows:
+            if row.value:
+                meta_creds[key_map[row.key]] = row.value
+
     publish_result: dict = {}
 
     if platform == Platform.INSTAGRAM.value:
@@ -243,6 +261,7 @@ async def publish_post(post_id: str, db: AsyncSession = Depends(get_db)):
             hashtags=hashtags,
             image_url=effective_image_url,
             video_url=effective_video_url,
+            credentials=meta_creds or None,
         )
     elif platform == Platform.FACEBOOK.value:
         publish_result = await post_to_facebook(
@@ -250,6 +269,7 @@ async def publish_post(post_id: str, db: AsyncSession = Depends(get_db)):
             hashtags=hashtags,
             image_url=effective_image_url,
             video_url=effective_video_url,
+            credentials=meta_creds or None,
         )
     elif platform == Platform.TIKTOK.value:
         if not video_url:
