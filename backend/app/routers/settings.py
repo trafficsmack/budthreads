@@ -68,7 +68,12 @@ async def _upsert(db: AsyncSession, key: str, value: str) -> None:
 
 
 def _callback_url(request: Request) -> str:
-    return str(request.base_url).rstrip("/") + "/api/settings/meta/oauth/callback"
+    base = str(request.base_url).rstrip("/")
+    # Railway (and most cloud platforms) terminate SSL at the proxy; uvicorn sees http://.
+    # Force https:// for any non-localhost host so Facebook accepts the redirect URI.
+    if base.startswith("http://") and "localhost" not in base and "127.0.0.1" not in base:
+        base = "https://" + base[len("http://"):]
+    return base + "/api/settings/meta/oauth/callback"
 
 
 # ── General settings endpoints ────────────────────────────────────────────────
