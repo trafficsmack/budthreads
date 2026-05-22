@@ -39,9 +39,9 @@ SENSITIVE_KEYS = {
 MASK = "••••••••"
 GRAPH_API_BASE = "https://graph.facebook.com/v21.0"
 META_SCOPES = ",".join([
+    "pages_show_list",
     "pages_manage_posts",
     "pages_read_engagement",
-    "instagram_basic",
     "instagram_content_publish",
 ])
 
