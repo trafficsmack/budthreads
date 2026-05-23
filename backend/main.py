@@ -82,6 +82,8 @@ _PUBLIC_PATHS = {"/", "/health", "/api/auth/login", "/api/auth/verify", "/api/au
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
+    if request.method == "OPTIONS":
+        return await call_next(request)
     if path in _PUBLIC_PATHS or path.startswith(("/docs", "/openapi", "/redoc")):
         return await call_next(request)
     auth = request.headers.get("Authorization", "")
