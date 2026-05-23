@@ -370,13 +370,18 @@ async def meta_setup_from_token(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Save a manually supplied Page Access Token + Page ID.
-    Automatically fetches the linked Instagram Business Account ID.
+    Save a Page Access Token + Page ID.
+    Tries to auto-fetch the Instagram Business Account ID but saves
+    credentials regardless so a Graph API quirk doesn't block setup.
     """
     page_id = page_id.strip()
     access_token = access_token.strip()
 
+    ig_id = ""
+    page_name = page_id  # fallback if we can't fetch the name
+
     async with httpx.AsyncClient(timeout=15.0) as client:
+        # Try fetching page info — attempt 1: with instagram_business_account
         res = await client.get(
             f"{GRAPH_API_BASE}/{page_id}",
             params={
@@ -386,14 +391,37 @@ async def meta_setup_from_token(
         )
         data = res.json()
 
-    if "error" in data:
-        raise HTTPException(
-            status_code=400,
-            detail=data["error"].get("message", "Invalid token or Page ID"),
-        )
-
-    ig_id = (data.get("instagram_business_account") or {}).get("id", "")
-    page_name = data.get("name", page_id)
+        if "error" in data:
+            # Attempt 2: minimal fields only (some tokens can't read IG account)
+            res2 = await client.get(
+                f"{GRAPH_API_BASE}/{page_id}",
+                params={"fields": "id,name", "access_token": access_token},
+            )
+            data2 = res2.json()
+            if "error" in data2:
+                # Attempt 3: token might be a user token — try /me/accounts
+                accts_res = await client.get(
+                    f"{GRAPH_API_BASE}/me/accounts",
+                    params={"access_token": access_token, "fields": "id,name,access_token"},
+                )
+                accts = accts_res.json().get("data", [])
+                match = next((p for p in accts if p["id"] == page_id), None)
+                if match:
+                    access_token = match["access_token"]
+                    page_name = match.get("name", page_id)
+                    # Now try to get IG account with the page token
+                    ig_res = await client.get(
+                        f"{GRAPH_API_BASE}/{page_id}",
+                        params={"fields": "instagram_business_account", "access_token": access_token},
+                    )
+                    ig_id = (ig_res.json().get("instagram_business_account") or {}).get("id", "")
+                # else: save what we have — let publish attempt reveal any real issue
+            else:
+                page_name = data2.get("name", page_id)
+                ig_id = (data2.get("instagram_business_account") or {}).get("id", "")
+        else:
+            page_name = data.get("name", page_id)
+            ig_id = (data.get("instagram_business_account") or {}).get("id", "")
 
     to_save = {
         "meta_access_token": access_token,
