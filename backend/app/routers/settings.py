@@ -219,6 +219,36 @@ async def meta_oauth_callback(
             # pages_show_list may not have been granted — save the user token so
             # the frontend can let the user type their Page ID and we finish from there.
             await _upsert(db, "meta_user_token_temp", long_token)
+
+            # If we already have a stored Page ID, try connecting automatically.
+            db_vals2 = await get_db_settings(db, ["meta_facebook_page_id"])
+            stored_page_id = db_vals2.get("meta_facebook_page_id", "").strip()
+            if stored_page_id:
+                await db.commit()
+                async with httpx.AsyncClient(timeout=15.0) as inner_client:
+                    page_res = await inner_client.get(
+                        f"{GRAPH_API_BASE}/{stored_page_id}",
+                        params={"fields": "id,name,access_token,instagram_business_account", "access_token": long_token},
+                    )
+                    page_data = page_res.json()
+                if "error" not in page_data:
+                    page_token = page_data.get("access_token") or long_token
+                    page_name = page_data.get("name", stored_page_id)
+                    ig_id = (page_data.get("instagram_business_account") or {}).get("id", "")
+                    to_save = {"meta_access_token": page_token, "meta_facebook_page_id": stored_page_id}
+                    if ig_id:
+                        to_save["meta_instagram_account_id"] = ig_id
+                    for key, value in to_save.items():
+                        await _upsert(db, key, value)
+                    temp = await db.get(Setting, "meta_user_token_temp")
+                    if temp:
+                        await db.delete(temp)
+                    await db.commit()
+                    qs = f"connected=meta&page={quote(page_name)}"
+                    if ig_id:
+                        qs += "&ig=1"
+                    return RedirectResponse(f"{frontend_url}/settings?{qs}")
+
             await db.commit()
             return RedirectResponse(f"{frontend_url}/settings?enter_page_id=1")
 

@@ -184,10 +184,14 @@ function SettingsContent() {
   const selectPage = searchParams.get("select_page");
   const enterPageId = searchParams.get("enter_page_id");
 
-  // Pre-fill App ID from stored settings (not masked)
+  // Pre-fill App ID and Page ID from stored settings
   useEffect(() => {
-    if (storedSettings?.meta_app_id && !storedSettings.meta_app_id.startsWith("•") && appId === "") {
+    if (!storedSettings) return;
+    if (storedSettings.meta_app_id && !storedSettings.meta_app_id.startsWith("•") && appId === "") {
       setAppId(storedSettings.meta_app_id);
+    }
+    if (storedSettings.meta_facebook_page_id && !storedSettings.meta_facebook_page_id.startsWith("•") && manualPageId === "") {
+      setManualPageId(storedSettings.meta_facebook_page_id);
     }
   }, [storedSettings]);
 
