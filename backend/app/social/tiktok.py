@@ -39,8 +39,10 @@ settings = get_settings()
 TIKTOK_API_BASE = "https://open.tiktokapis.com/v2"
 
 
-def is_configured() -> bool:
+def is_configured(credentials: dict | None = None) -> bool:
     """Check if TikTok API credentials are configured."""
+    if credentials:
+        return bool(credentials.get("access_token") and credentials.get("client_key"))
     return bool(settings.tiktok_access_token and settings.tiktok_client_key)
 
 
@@ -48,6 +50,7 @@ async def post_to_tiktok(
     caption: str,
     hashtags: list[str],
     video_url: str,
+    credentials: dict | None = None,
 ) -> dict:
     """
     Post a video to TikTok via the Content Posting API v2.
@@ -64,16 +67,17 @@ async def post_to_tiktok(
     Returns:
         dict with keys: success (bool), publish_id (str | None), error (str | None)
     """
-    if not is_configured():
+    if not is_configured(credentials):
         return {
             "success": False,
             "publish_id": None,
             "error": (
-                "TikTok API not configured. Set TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, "
-                "and TIKTOK_ACCESS_TOKEN in your .env file. "
+                "TikTok API not configured. Add your TikTok credentials in Settings. "
                 "See app/social/tiktok.py for full setup instructions."
             ),
         }
+
+    access_token = (credentials or {}).get("access_token") or settings.tiktok_access_token
 
     # Build the caption with hashtags embedded
     hashtag_text = " ".join(hashtags) if hashtags else ""
@@ -84,7 +88,7 @@ async def post_to_tiktok(
         full_caption = full_caption[:2197] + "..."
 
     headers = {
-        "Authorization": f"Bearer {settings.tiktok_access_token}",
+        "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json; charset=UTF-8",
     }
 
@@ -179,7 +183,7 @@ async def check_publish_status(publish_id: str) -> dict:
         }
 
     headers = {
-        "Authorization": f"Bearer {settings.tiktok_access_token}",
+        "Authorization": f"Bearer {settings.tiktok_access_token or ''}",
         "Content-Type": "application/json; charset=UTF-8",
     }
 

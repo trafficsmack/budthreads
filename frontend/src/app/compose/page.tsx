@@ -22,7 +22,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/components/Toaster";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { authedFetcher } from "@/lib/auth";
+const fetcher = authedFetcher;
 
 type Platform = "instagram" | "facebook" | "tiktok";
 type Step = 1 | 2 | 3 | 4 | 5;

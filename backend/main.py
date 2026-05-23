@@ -12,8 +12,10 @@ Or with the convenience script:
 import uvicorn
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from jose import JWTError, jwt
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +25,7 @@ from app.models.post import Post, PostStatus
 from app.models.product import Product
 from app.models.setting import Setting  # noqa: F401 — registers table with Base
 from app.routers import products, posts, agents, research, shopify_auth, settings as settings_router
+from app.routers.auth import router as auth_router
 
 settings = get_settings()
 
@@ -64,12 +67,31 @@ app.add_middleware(
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
+app.include_router(auth_router)
 app.include_router(products.router)
 app.include_router(posts.router)
 app.include_router(agents.router)
 app.include_router(research.router)
 app.include_router(shopify_auth.router)
 app.include_router(settings_router.router)
+
+# ── Auth middleware ───────────────────────────────────────────────────────────
+_PUBLIC_PATHS = {"/", "/health", "/api/auth/login", "/api/auth/verify"}
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    if path in _PUBLIC_PATHS or path.startswith(("/docs", "/openapi", "/redoc")):
+        return await call_next(request)
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+    try:
+        jwt.decode(auth[7:], settings.secret_key, algorithms=["HS256"])
+    except JWTError:
+        return JSONResponse(status_code=401, content={"detail": "Invalid or expired token"})
+    return await call_next(request)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

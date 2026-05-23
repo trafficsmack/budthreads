@@ -27,7 +27,8 @@ import { toast } from "@/components/Toaster";
 import { cn } from "@/lib/utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { authedFetcher } from "@/lib/auth";
+const fetcher = authedFetcher;
 
 type StatusFilter = "all" | Post["status"];
 type PlatformFilter = "all" | "instagram" | "facebook" | "tiktok";

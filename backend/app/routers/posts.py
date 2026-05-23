@@ -277,10 +277,23 @@ async def publish_post(post_id: str, db: AsyncSession = Depends(get_db)):
                 status_code=400,
                 detail="TikTok posts require a video URL in media_urls.",
             )
+        tiktok_key_map = {
+            "tiktok_access_token": "access_token",
+            "tiktok_client_key": "client_key",
+            "tiktok_client_secret": "client_secret",
+        }
+        tiktok_rows = (
+            await db.execute(select(Setting).where(Setting.key.in_(tiktok_key_map.keys())))
+        ).scalars().all()
+        tiktok_creds: dict = {}
+        for row in tiktok_rows:
+            if row.value:
+                tiktok_creds[tiktok_key_map[row.key]] = row.value
         publish_result = await post_to_tiktok(
             caption=caption,
             hashtags=hashtags,
             video_url=video_url,
+            credentials=tiktok_creds or None,
         )
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported platform: {platform}")

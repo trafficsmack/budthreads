@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { CheckCircle2, XCircle, Eye, EyeOff, Save, Loader2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { authedFetcher, authHeaders } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = authedFetcher;
 
 const MASK = "••••••••";
 
@@ -94,6 +95,9 @@ function SettingsContent() {
   const [token, setToken] = useState("");
   const [pageId, setPageId] = useState("61588731239780");
   const [igId, setIgId] = useState("");
+  const [ttClientKey, setTtClientKey] = useState("");
+  const [ttClientSecret, setTtClientSecret] = useState("");
+  const [ttAccessToken, setTtAccessToken] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +109,8 @@ function SettingsContent() {
       setPageId(stored.meta_facebook_page_id);
     if (stored.meta_instagram_account_id && !stored.meta_instagram_account_id.startsWith("•"))
       setIgId(stored.meta_instagram_account_id);
+    if (stored.tiktok_client_key && !stored.tiktok_client_key.startsWith("•"))
+      setTtClientKey(stored.tiktok_client_key);
   }, [stored]);
 
   async function handleSave() {
@@ -115,10 +121,13 @@ function SettingsContent() {
       if (token && !token.startsWith("•")) settings.meta_access_token = token.trim();
       if (pageId.trim()) settings.meta_facebook_page_id = pageId.trim();
       if (igId.trim()) settings.meta_instagram_account_id = igId.trim();
+      if (ttClientKey.trim()) settings.tiktok_client_key = ttClientKey.trim();
+      if (ttClientSecret && !ttClientSecret.startsWith("•")) settings.tiktok_client_secret = ttClientSecret.trim();
+      if (ttAccessToken && !ttAccessToken.startsWith("•")) settings.tiktok_access_token = ttAccessToken.trim();
 
       const res = await fetch(`${API_URL}/api/settings`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ settings }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -135,6 +144,7 @@ function SettingsContent() {
 
   const metaConnected = status?.meta;
   const igConnected = status?.meta_instagram;
+  const tiktokConnected = status?.tiktok;
 
   return (
     <div className="p-8 max-w-xl">
@@ -224,6 +234,58 @@ function SettingsContent() {
             : <><Save className="w-4 h-4" /> Save credentials</>}
         </button>
       </div>
+
+      {/* TikTok card */}
+      <div className="card space-y-5 mt-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-black/5 flex items-center justify-center text-xl">🎵</div>
+            <div>
+              <h2 className="font-bold text-navy text-base leading-tight">TikTok</h2>
+              <p className="text-xs text-navy/50">Content Posting API</p>
+            </div>
+          </div>
+          <StatusBadge connected={!!tiktokConnected} />
+        </div>
+
+        <hr className="border-cream-dark" />
+
+        <TextField
+          label="Client Key"
+          value={ttClientKey}
+          onChange={setTtClientKey}
+          placeholder={stored?.tiktok_client_key ? stored.tiktok_client_key : "Paste your Client Key…"}
+          hint="From developers.tiktok.com → your app → App info"
+        />
+
+        <SecretField
+          label="Client Secret"
+          value={ttClientSecret}
+          onChange={setTtClientSecret}
+          placeholder={stored?.tiktok_client_secret ? "••••••••" : "Paste your Client Secret…"}
+        />
+
+        <SecretField
+          label="Access Token"
+          value={ttAccessToken}
+          onChange={setTtAccessToken}
+          placeholder={stored?.tiktok_access_token ? "••••••••" : "Paste your Access Token…"}
+          hint="OAuth access token with video.upload and video.publish scopes"
+        />
+
+        {error && <p className="text-xs text-red-500">{error}</p>}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="btn-primary w-full justify-center"
+        >
+          {saving
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+            : saved
+            ? <><CheckCircle2 className="w-4 h-4" /> Saved</>
+            : <><Save className="w-4 h-4" /> Save credentials</>}
+        </button>
+      </div>
     </div>
   );
 }
@@ -236,7 +298,7 @@ function LookupInstagramId({ onFound }: { onFound: (id: string) => void }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/settings/meta/lookup-instagram`, { method: "POST" });
+      const res = await fetch(`${API_URL}/api/settings/meta/lookup-instagram`, { method: "POST", headers: authHeaders() });
       const data = await res.json();
       if (!res.ok || !data.ig_id) throw new Error(data.detail || "Not found");
       onFound(data.ig_id);

@@ -22,7 +22,8 @@ import { api, Post } from "@/lib/api";
 import PlatformBadge from "@/components/PlatformBadge";
 import { toast } from "@/components/Toaster";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { authedFetcher } from "@/lib/auth";
+const fetcher = authedFetcher;
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 function StatCard({

@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./budthreads.db"
     frontend_url: str = "http://localhost:3000"
     backend_url: str = ""
+    admin_password: str = "changeme"
+    secret_key: str = "dev-secret-key-change-in-production"
 
     class Config:
         env_file = ".env"

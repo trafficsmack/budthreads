@@ -1,3 +1,5 @@
+import { authHeaders } from "./auth";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export interface Product {
@@ -50,10 +52,10 @@ export interface AgentStreamEvent {
 export const api = {
   // Products
   getProducts: (): Promise<Product[]> =>
-    fetch(`${API_URL}/api/products`).then((r) => r.json()),
+    fetch(`${API_URL}/api/products`, { headers: authHeaders() }).then((r) => r.json()),
 
   syncShopify: (): Promise<{ synced: number; message: string }> =>
-    fetch(`${API_URL}/api/products/sync`, { method: "POST" }).then((r) =>
+    fetch(`${API_URL}/api/products/sync`, { method: "POST", headers: authHeaders() }).then((r) =>
       r.json()
     ),
 
@@ -66,35 +68,35 @@ export const api = {
     if (filters?.platform) params.set("platform", filters.platform);
     if (filters?.status) params.set("status", filters.status);
     const query = params.toString() ? `?${params.toString()}` : "";
-    return fetch(`${API_URL}/api/posts${query}`).then((r) => r.json());
+    return fetch(`${API_URL}/api/posts${query}`, { headers: authHeaders() }).then((r) => r.json());
   },
 
   createPost: (post: CreatePostPayload): Promise<Post> =>
     fetch(`${API_URL}/api/posts`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(post),
     }).then((r) => r.json()),
 
   updatePost: (id: string, post: Partial<CreatePostPayload>): Promise<Post> =>
     fetch(`${API_URL}/api/posts/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(post),
     }).then((r) => r.json()),
 
   deletePost: (id: string): Promise<{ success: boolean }> =>
-    fetch(`${API_URL}/api/posts/${id}`, { method: "DELETE" }).then((r) =>
+    fetch(`${API_URL}/api/posts/${id}`, { method: "DELETE", headers: authHeaders() }).then((r) =>
       r.json()
     ),
 
   publishPost: (id: string): Promise<Post> =>
-    fetch(`${API_URL}/api/posts/${id}/publish`, { method: "POST" }).then((r) =>
+    fetch(`${API_URL}/api/posts/${id}/publish`, { method: "POST", headers: authHeaders() }).then((r) =>
       r.json()
     ),
 
   approvePost: (id: string): Promise<Post> =>
-    fetch(`${API_URL}/api/posts/${id}/approve`, { method: "POST" }).then((r) =>
+    fetch(`${API_URL}/api/posts/${id}/approve`, { method: "POST", headers: authHeaders() }).then((r) =>
       r.json()
     ),
 
@@ -104,7 +106,7 @@ export const api = {
     published_this_week: number;
     draft_posts: number;
     total_products: number;
-  }> => fetch(`${API_URL}/api/stats`).then((r) => r.json()),
+  }> => fetch(`${API_URL}/api/stats`, { headers: authHeaders() }).then((r) => r.json()),
 };
 
 // SSE streaming for agent calls
@@ -114,7 +116,7 @@ export async function* streamAgentResponse(
 ): AsyncGenerator<AgentStreamEvent> {
   const response = await fetch(`${API_URL}${url}`, {
     method: body ? "POST" : "GET",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: body ? JSON.stringify(body) : undefined,
   });
 
