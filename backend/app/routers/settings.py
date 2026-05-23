@@ -363,59 +363,65 @@ async def meta_connect_page(
     return {"ok": True, "page": page_name, "ig": bool(ig_id)}
 
 
+@router.get("/meta/save")
+async def meta_save_via_url(
+    access_token: str = Query(...),
+    page_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """GET version of setup-from-token so credentials can be saved by visiting a URL."""
+    from app.config import get_settings
+    env = get_settings()
+    frontend_url = env.frontend_url or "http://localhost:3000"
+    result = await _do_setup_from_token(access_token.strip(), page_id.strip(), db)
+    return RedirectResponse(
+        f"{frontend_url}/settings?connected=meta&page={quote(result['page'])}{('&ig=1' if result['ig'] else '')}"
+    )
+
+
 @router.post("/meta/setup-from-token")
 async def meta_setup_from_token(
     access_token: str = Query(...),
     page_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Save a Page Access Token + Page ID.
-    Tries to auto-fetch the Instagram Business Account ID but saves
-    credentials regardless so a Graph API quirk doesn't block setup.
-    """
-    page_id = page_id.strip()
-    access_token = access_token.strip()
+    """Save a Page Access Token + Page ID, auto-fetching Instagram account ID."""
+    result = await _do_setup_from_token(access_token.strip(), page_id.strip(), db)
+    return result
 
+
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+async def _do_setup_from_token(access_token: str, page_id: str, db: AsyncSession) -> dict:
     ig_id = ""
-    page_name = page_id  # fallback if we can't fetch the name
+    page_name = page_id
 
     async with httpx.AsyncClient(timeout=15.0) as client:
-        # Try fetching page info — attempt 1: with instagram_business_account
         res = await client.get(
             f"{GRAPH_API_BASE}/{page_id}",
-            params={
-                "fields": "id,name,instagram_business_account",
-                "access_token": access_token,
-            },
+            params={"fields": "id,name,instagram_business_account", "access_token": access_token},
         )
         data = res.json()
 
         if "error" in data:
-            # Attempt 2: minimal fields only (some tokens can't read IG account)
             res2 = await client.get(
                 f"{GRAPH_API_BASE}/{page_id}",
                 params={"fields": "id,name", "access_token": access_token},
             )
             data2 = res2.json()
             if "error" in data2:
-                # Attempt 3: token might be a user token — try /me/accounts
-                accts_res = await client.get(
+                accts = (await client.get(
                     f"{GRAPH_API_BASE}/me/accounts",
                     params={"access_token": access_token, "fields": "id,name,access_token"},
-                )
-                accts = accts_res.json().get("data", [])
+                )).json().get("data", [])
                 match = next((p for p in accts if p["id"] == page_id), None)
                 if match:
                     access_token = match["access_token"]
                     page_name = match.get("name", page_id)
-                    # Now try to get IG account with the page token
-                    ig_res = await client.get(
+                    ig_id = (await client.get(
                         f"{GRAPH_API_BASE}/{page_id}",
                         params={"fields": "instagram_business_account", "access_token": access_token},
-                    )
-                    ig_id = (ig_res.json().get("instagram_business_account") or {}).get("id", "")
-                # else: save what we have — let publish attempt reveal any real issue
+                    )).json().get("instagram_business_account", {}).get("id", "") or ""
             else:
                 page_name = data2.get("name", page_id)
                 ig_id = (data2.get("instagram_business_account") or {}).get("id", "")
@@ -423,21 +429,15 @@ async def meta_setup_from_token(
             page_name = data.get("name", page_id)
             ig_id = (data.get("instagram_business_account") or {}).get("id", "")
 
-    to_save = {
-        "meta_access_token": access_token,
-        "meta_facebook_page_id": page_id,
-    }
+    to_save = {"meta_access_token": access_token, "meta_facebook_page_id": page_id}
     if ig_id:
         to_save["meta_instagram_account_id"] = ig_id
-
     for key, value in to_save.items():
         await _upsert(db, key, value)
     await db.commit()
 
     return {"ok": True, "page": page_name, "ig": bool(ig_id), "ig_id": ig_id}
 
-
-# ── Internal helpers ──────────────────────────────────────────────────────────
 
 async def _fetch_ig_id(page_id: str, page_token: str, client: httpx.AsyncClient) -> str:
     res = await client.get(
