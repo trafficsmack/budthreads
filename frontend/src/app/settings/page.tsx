@@ -172,6 +172,9 @@ function SettingsContent() {
   const [savedCreds, setSavedCreds] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [selectingPage, setSelectingPage] = useState<string | null>(null);
+  const [manualPageId, setManualPageId] = useState("");
+  const [connectingPage, setConnectingPage] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   // Banners from OAuth redirect params
   const connectedParam = searchParams.get("connected");
@@ -179,6 +182,7 @@ function SettingsContent() {
   const igLinked = searchParams.get("ig") === "1";
   const errorParam = searchParams.get("error");
   const selectPage = searchParams.get("select_page");
+  const enterPageId = searchParams.get("enter_page_id");
 
   // Pre-fill App ID from stored settings (not masked)
   useEffect(() => {
@@ -222,6 +226,26 @@ function SettingsContent() {
     await saveAppCreds();
     // Navigate to OAuth start — the browser follows the redirect chain
     window.location.href = `${API_URL}/api/settings/meta/oauth/start`;
+  }
+
+  async function handleConnectPage() {
+    if (!manualPageId.trim()) return;
+    setConnectingPage(true);
+    setPageError(null);
+    try {
+      const res = await fetch(
+        `${API_URL}/api/settings/meta/connect-page?page_id=${encodeURIComponent(manualPageId.trim())}`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Connection failed");
+      await mutateStatus();
+      router.replace(`/settings?connected=meta&page=${encodeURIComponent(data.page)}${data.ig ? "&ig=1" : ""}`);
+    } catch (e) {
+      setPageError(e instanceof Error ? e.message : "Connection failed");
+    } finally {
+      setConnectingPage(false);
+    }
   }
 
   async function handleSelectPage(pageId: string) {
@@ -271,6 +295,42 @@ function SettingsContent() {
             <p className="font-semibold">Connection failed</p>
             <p className="text-red-700">{decodeURIComponent(errorParam)}</p>
           </div>
+        </div>
+      )}
+
+      {/* Manual Page ID fallback (when /me/accounts returns empty) */}
+      {enterPageId && (
+        <div className="mb-5 p-5 rounded-xl bg-amber-50 border border-amber-200">
+          <div className="flex items-start gap-3 mb-4">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-900 text-sm">One more step</p>
+              <p className="text-amber-800 text-xs mt-0.5">
+                Facebook authenticated successfully but couldn't auto-detect your Page.
+                Enter your Facebook Page ID below to finish connecting.
+              </p>
+              <p className="text-amber-700 text-xs mt-1">
+                Find it at <strong>facebook.com/[your-page]</strong> → About → Page transparency, or in your Page settings.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={manualPageId}
+              onChange={(e) => { setManualPageId(e.target.value); setPageError(null); }}
+              placeholder="e.g. 100000000000000"
+              className="flex-1 px-3 py-2 text-sm rounded-lg border border-amber-300 bg-white text-navy placeholder:text-navy/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-gold"
+            />
+            <button
+              onClick={handleConnectPage}
+              disabled={connectingPage || !manualPageId.trim()}
+              className="btn-primary text-sm whitespace-nowrap"
+            >
+              {connectingPage ? <Loader2 className="w-4 h-4 animate-spin" /> : "Connect"}
+            </button>
+          </div>
+          {pageError && <p className="mt-2 text-xs text-red-600">{pageError}</p>}
         </div>
       )}
 

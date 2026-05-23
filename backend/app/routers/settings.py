@@ -216,7 +216,11 @@ async def meta_oauth_callback(
         pages = pages_res.json().get("data", [])
 
         if not pages:
-            return RedirectResponse(f"{frontend_url}/settings?error=no_pages_found")
+            # pages_show_list may not have been granted — save the user token so
+            # the frontend can let the user type their Page ID and we finish from there.
+            await _upsert(db, "meta_user_token_temp", long_token)
+            await db.commit()
+            return RedirectResponse(f"{frontend_url}/settings?enter_page_id=1")
 
         if len(pages) == 1:
             return await _save_page(pages[0], db, frontend_url, client)
@@ -275,6 +279,58 @@ async def meta_select_page(
     await db.commit()
 
     return {"ok": True, "page": page["name"], "ig": bool(ig_id)}
+
+
+@router.post("/meta/connect-page")
+async def meta_connect_page(
+    page_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Fallback for when /me/accounts returns no pages (pages_show_list not granted).
+    Uses the temporarily saved user token + a manually supplied Page ID to fetch
+    the page access token and linked Instagram account, then saves all credentials.
+    """
+    token_row = await db.get(Setting, "meta_user_token_temp")
+    if not token_row:
+        raise HTTPException(status_code=400, detail="No authenticated session found. Please click 'Connect with Facebook' again.")
+
+    user_token = token_row.value
+    page_id = page_id.strip()
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        # Fetch page name + page access token using the user token
+        page_res = await client.get(
+            f"{GRAPH_API_BASE}/{page_id}",
+            params={"fields": "id,name,access_token,instagram_business_account", "access_token": user_token},
+        )
+        page_data = page_res.json()
+
+        if "error" in page_data:
+            raise HTTPException(
+                status_code=400,
+                detail=page_data["error"].get("message", "Could not access that Page. Make sure this account is an Admin of the Page."),
+            )
+
+        page_token = page_data.get("access_token") or user_token
+        page_name = page_data.get("name", page_id)
+        ig_id = (page_data.get("instagram_business_account") or {}).get("id", "")
+
+    to_save = {
+        "meta_access_token": page_token,
+        "meta_facebook_page_id": page_id,
+    }
+    if ig_id:
+        to_save["meta_instagram_account_id"] = ig_id
+
+    for key, value in to_save.items():
+        await _upsert(db, key, value)
+
+    # Clean up temp token
+    await db.delete(token_row)
+    await db.commit()
+
+    return {"ok": True, "page": page_name, "ig": bool(ig_id)}
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
