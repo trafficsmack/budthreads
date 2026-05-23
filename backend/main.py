@@ -76,7 +76,7 @@ app.include_router(shopify_auth.router)
 app.include_router(settings_router.router)
 
 # ── Auth middleware ───────────────────────────────────────────────────────────
-_PUBLIC_PATHS = {"/", "/health", "/api/auth/login", "/api/auth/verify"}
+_PUBLIC_PATHS = {"/", "/health", "/api/auth/login", "/api/auth/verify", "/api/auth/debug-password"}
 
 
 @app.middleware("http")

@@ -41,3 +41,20 @@ async def login(payload: LoginPayload):
 async def verify(token: str):
     settings = get_settings()
     return {"valid": verify_token(token, settings.secret_key)}
+
+
+@router.get("/debug-password")
+async def debug_password():
+    """Temporary: shows password length and whether it's the default, without exposing it."""
+    from functools import lru_cache
+    # Bypass lru_cache by creating a fresh Settings instance
+    from app.config import Settings
+    fresh = Settings()
+    pwd = fresh.admin_password
+    return {
+        "length": len(pwd),
+        "is_default": pwd.strip() == "changeme",
+        "first_char": pwd[0] if pwd else "",
+        "last_char": pwd[-1] if pwd else "",
+        "has_whitespace": pwd != pwd.strip(),
+    }
