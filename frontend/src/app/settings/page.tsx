@@ -149,6 +149,56 @@ function PageSelectModal({
   );
 }
 
+// ── Instagram Account ID manual entry ────────────────────────────────────────
+
+function InstagramIdSection({ onSaved }: { onSaved: () => void }) {
+  const [igId, setIgId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!igId.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: { meta_instagram_account_id: igId.trim() } }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setSaved(true);
+      onSaved();
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex gap-2">
+      <input
+        type="text"
+        value={igId}
+        onChange={(e) => { setIgId(e.target.value); setError(null); setSaved(false); }}
+        placeholder="e.g. 17841400000000000"
+        className="flex-1 px-3 py-2 text-sm rounded-lg border border-cream-dark bg-white text-navy placeholder:text-navy/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-gold"
+      />
+      <button
+        onClick={handleSave}
+        disabled={saving || !igId.trim()}
+        className="btn-primary text-sm whitespace-nowrap"
+      >
+        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+      </button>
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
+  );
+}
+
 // ── Manual token entry ────────────────────────────────────────────────────────
 
 function ManualTokenSection({
@@ -553,6 +603,24 @@ function SettingsContent() {
             router.replace(`/settings?connected=meta&page=${encodeURIComponent(pageName)}${igLinked ? "&ig=1" : ""}`);
           }}
         />
+
+        {/* Instagram Account ID (manual fallback) */}
+        {metaConnected && !status?.meta_instagram && (
+          <div className="mt-5 pt-5 border-t border-cream-dark">
+            <p className="text-xs font-bold text-navy/40 uppercase tracking-widest mb-1">
+              Instagram Account ID
+            </p>
+            <p className="text-xs text-navy/50 mb-3">
+              Facebook connected but no Instagram account found automatically.
+              Find your ID in{" "}
+              <a href="https://business.facebook.com" target="_blank" rel="noopener noreferrer" className="underline">
+                Meta Business Suite
+              </a>{" "}
+              → Instagram Accounts → click your account → the numeric ID in the URL or account info.
+            </p>
+            <InstagramIdSection onSaved={mutateStatus} />
+          </div>
+        )}
       </div>
     </div>
   );

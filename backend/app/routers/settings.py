@@ -113,12 +113,13 @@ async def integration_status(db: AsyncSession = Depends(get_db)):
     def has(key: str, fallback: str) -> bool:
         return bool(db_vals.get(key) or fallback)
 
+    meta_token = has("meta_access_token", env.meta_access_token)
+    meta_page = has("meta_facebook_page_id", env.meta_facebook_page_id)
+    meta_ig = has("meta_instagram_account_id", env.meta_instagram_account_id)
+
     return {
-        "meta": all([
-            has("meta_access_token", env.meta_access_token),
-            has("meta_instagram_account_id", env.meta_instagram_account_id),
-            has("meta_facebook_page_id", env.meta_facebook_page_id),
-        ]),
+        "meta": meta_token and meta_page,
+        "meta_instagram": meta_ig,
         "tiktok": has("tiktok_access_token", env.tiktok_access_token),
         "shopify": has("shopify_access_token", env.shopify_access_token),
     }
