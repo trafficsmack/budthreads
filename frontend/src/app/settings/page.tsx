@@ -149,6 +149,71 @@ function PageSelectModal({
   );
 }
 
+// ── Manual token entry ────────────────────────────────────────────────────────
+
+function ManualTokenSection({
+  pageId,
+  onSuccess,
+}: {
+  pageId: string;
+  onSuccess: (page: string, ig: boolean) => void;
+}) {
+  const [token, setToken] = useState("");
+  const [manualPageId, setManualPageId] = useState(pageId);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [show, setShow] = useState(false);
+
+  async function handleSave() {
+    if (!token.trim() || !manualPageId.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `${API_URL}/api/settings/meta/setup-from-token?access_token=${encodeURIComponent(token.trim())}&page_id=${encodeURIComponent(manualPageId.trim())}`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to save");
+      onSuccess(data.page, data.ig);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save token");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="space-y-3">
+        <SecretInput
+          label="Page Access Token"
+          value={token}
+          onChange={(v) => { setToken(v); setError(null); }}
+          placeholder="Paste your token here…"
+        />
+        <div>
+          <label className="block text-xs font-semibold text-navy/60 mb-1.5">Facebook Page ID</label>
+          <input
+            type="text"
+            value={manualPageId}
+            onChange={(e) => setManualPageId(e.target.value)}
+            className="w-full px-3 py-2 text-sm rounded-lg border border-cream-dark bg-white text-navy placeholder:text-navy/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-gold transition-colors"
+          />
+        </div>
+      </div>
+      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+      <button
+        onClick={handleSave}
+        disabled={saving || !token.trim()}
+        className="btn-primary text-sm mt-4 w-full justify-center"
+      >
+        {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><Save className="w-4 h-4" /> Save & verify token</>}
+      </button>
+    </div>
+  );
+}
+
 // ── Main settings content ─────────────────────────────────────────────────────
 
 function SettingsContent() {
@@ -414,7 +479,7 @@ function SettingsContent() {
         </div>
 
         {/* Step 3 — Connect */}
-        <div>
+        <div className="mb-5">
           <p className="text-xs font-bold text-navy/40 uppercase tracking-widest mb-3">
             Step 3 — Connect
           </p>
@@ -440,17 +505,28 @@ function SettingsContent() {
               </>
             )}
           </button>
-          {!appId.trim() && (
-            <p className="mt-2 text-center text-xs text-navy/40">
-              Enter your App ID above to continue
-            </p>
-          )}
           {metaConnected && !connecting && (
             <p className="mt-2 text-center text-xs text-green-600">
               Already connected — reconnect to refresh your token
             </p>
           )}
         </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex-1 h-px bg-cream-dark" />
+          <span className="text-xs text-navy/30 font-medium">or paste token directly</span>
+          <div className="flex-1 h-px bg-cream-dark" />
+        </div>
+
+        {/* Manual token entry */}
+        <ManualTokenSection
+          pageId="61588731239780"
+          onSuccess={(pageName, igLinked) => {
+            mutateStatus();
+            router.replace(`/settings?connected=meta&page=${encodeURIComponent(pageName)}${igLinked ? "&ig=1" : ""}`);
+          }}
+        />
       </div>
     </div>
   );

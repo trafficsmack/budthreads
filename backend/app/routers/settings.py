@@ -363,6 +363,52 @@ async def meta_connect_page(
     return {"ok": True, "page": page_name, "ig": bool(ig_id)}
 
 
+@router.post("/meta/setup-from-token")
+async def meta_setup_from_token(
+    access_token: str = Query(...),
+    page_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Save a manually supplied Page Access Token + Page ID.
+    Automatically fetches the linked Instagram Business Account ID.
+    """
+    page_id = page_id.strip()
+    access_token = access_token.strip()
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        res = await client.get(
+            f"{GRAPH_API_BASE}/{page_id}",
+            params={
+                "fields": "id,name,instagram_business_account",
+                "access_token": access_token,
+            },
+        )
+        data = res.json()
+
+    if "error" in data:
+        raise HTTPException(
+            status_code=400,
+            detail=data["error"].get("message", "Invalid token or Page ID"),
+        )
+
+    ig_id = (data.get("instagram_business_account") or {}).get("id", "")
+    page_name = data.get("name", page_id)
+
+    to_save = {
+        "meta_access_token": access_token,
+        "meta_facebook_page_id": page_id,
+    }
+    if ig_id:
+        to_save["meta_instagram_account_id"] = ig_id
+
+    for key, value in to_save.items():
+        await _upsert(db, key, value)
+    await db.commit()
+
+    return {"ok": True, "page": page_name, "ig": bool(ig_id), "ig_id": ig_id}
+
+
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 async def _fetch_ig_id(page_id: str, page_token: str, client: httpx.AsyncClient) -> str:
