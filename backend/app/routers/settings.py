@@ -364,6 +364,53 @@ async def meta_connect_page(
     return {"ok": True, "page": page_name, "ig": bool(ig_id)}
 
 
+@router.post("/meta/lookup-instagram")
+async def meta_lookup_instagram(db: AsyncSession = Depends(get_db)):
+    """Try to find the Instagram Business Account ID using stored credentials."""
+    from app.config import get_settings
+    env = get_settings()
+    db_vals = await get_db_settings(db, ["meta_access_token", "meta_facebook_page_id"])
+    token = db_vals.get("meta_access_token") or env.meta_access_token
+    page_id = db_vals.get("meta_facebook_page_id") or env.meta_facebook_page_id
+
+    if not token or not page_id:
+        raise HTTPException(status_code=400, detail="Save your access token and page ID first.")
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        # Strategy 1: page → instagram_business_account
+        r1 = await client.get(f"{GRAPH_API_BASE}/{page_id}",
+            params={"fields": "instagram_business_account", "access_token": token})
+        ig_id = (r1.json().get("instagram_business_account") or {}).get("id", "")
+        if ig_id:
+            await _upsert(db, "meta_instagram_account_id", ig_id)
+            await db.commit()
+            return {"ig_id": ig_id}
+
+        # Strategy 2: /me/accounts with instagram_business_account field
+        r2 = await client.get(f"{GRAPH_API_BASE}/me/accounts",
+            params={"fields": "id,instagram_business_account", "access_token": token})
+        for page in r2.json().get("data", []):
+            if page.get("id") == page_id or not page_id:
+                ig_id = (page.get("instagram_business_account") or {}).get("id", "")
+                if ig_id:
+                    await _upsert(db, "meta_instagram_account_id", ig_id)
+                    await db.commit()
+                    return {"ig_id": ig_id}
+
+        # Strategy 3: /me?fields=instagram_accounts (system user)
+        r3 = await client.get(f"{GRAPH_API_BASE}/me",
+            params={"fields": "instagram_accounts{id,name}", "access_token": token})
+        accounts = r3.json().get("instagram_accounts", {}).get("data", [])
+        if accounts:
+            ig_id = accounts[0]["id"]
+            await _upsert(db, "meta_instagram_account_id", ig_id)
+            await db.commit()
+            return {"ig_id": ig_id}
+
+    raise HTTPException(status_code=404,
+        detail="Could not auto-detect Instagram account. Please enter the ID manually.")
+
+
 @router.get("/meta/save")
 async def meta_save_via_url(
     access_token: str = Query(...),
