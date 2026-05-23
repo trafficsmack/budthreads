@@ -238,6 +238,7 @@ function SettingsContent() {
   const [connecting, setConnecting] = useState(false);
   const [selectingPage, setSelectingPage] = useState<string | null>(null);
   const [manualPageId, setManualPageId] = useState("");
+  const [manualToken, setManualToken] = useState("");
   const [connectingPage, setConnectingPage] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
 
@@ -295,6 +296,26 @@ function SettingsContent() {
     await saveAppCreds();
     // Navigate to OAuth start — the browser follows the redirect chain
     window.location.href = `${API_URL}/api/settings/meta/oauth/start`;
+  }
+
+  async function handleConnectWithToken() {
+    if (!manualToken.trim() || !manualPageId.trim()) return;
+    setConnectingPage(true);
+    setPageError(null);
+    try {
+      const res = await fetch(
+        `${API_URL}/api/settings/meta/setup-from-token?access_token=${encodeURIComponent(manualToken.trim())}&page_id=${encodeURIComponent(manualPageId.trim())}`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Connection failed");
+      await mutateStatus();
+      router.replace(`/settings?connected=meta&page=${encodeURIComponent(data.page)}${data.ig ? "&ig=1" : ""}`);
+    } catch (e) {
+      setPageError(e instanceof Error ? e.message : "Connection failed");
+    } finally {
+      setConnectingPage(false);
+    }
   }
 
   async function handleConnectPage() {
@@ -375,30 +396,35 @@ function SettingsContent() {
             <div>
               <p className="font-semibold text-amber-900 text-sm">One more step</p>
               <p className="text-amber-800 text-xs mt-0.5">
-                Facebook authenticated successfully but couldn't auto-detect your Page.
-                Enter your Facebook Page ID below to finish connecting.
-              </p>
-              <p className="text-amber-700 text-xs mt-1">
-                Find it at <strong>facebook.com/[your-page]</strong> → About → Page transparency, or in your Page settings.
+                Paste your Page Access Token and Page ID to finish connecting.
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={manualPageId}
-              onChange={(e) => { setManualPageId(e.target.value); setPageError(null); }}
-              placeholder="e.g. 100000000000000"
-              className="flex-1 px-3 py-2 text-sm rounded-lg border border-amber-300 bg-white text-navy placeholder:text-navy/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-gold"
+          <div className="space-y-3">
+            <SecretInput
+              label="Page Access Token"
+              value={manualToken}
+              onChange={(v) => { setManualToken(v); setPageError(null); }}
+              placeholder="Paste your token here…"
             />
-            <button
-              onClick={handleConnectPage}
-              disabled={connectingPage || !manualPageId.trim()}
-              className="btn-primary text-sm whitespace-nowrap"
-            >
-              {connectingPage ? <Loader2 className="w-4 h-4 animate-spin" /> : "Connect"}
-            </button>
+            <div>
+              <label className="block text-xs font-semibold text-navy/60 mb-1.5">Facebook Page ID</label>
+              <input
+                type="text"
+                value={manualPageId}
+                onChange={(e) => { setManualPageId(e.target.value); setPageError(null); }}
+                placeholder="e.g. 100000000000000"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-amber-300 bg-white text-navy placeholder:text-navy/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-gold"
+              />
+            </div>
           </div>
+          <button
+            onClick={handleConnectWithToken}
+            disabled={connectingPage || !manualPageId.trim() || !manualToken.trim()}
+            className="btn-primary text-sm mt-3 w-full justify-center"
+          >
+            {connectingPage ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Save & verify token"}
+          </button>
           {pageError && <p className="mt-2 text-xs text-red-600">{pageError}</p>}
         </div>
       )}
