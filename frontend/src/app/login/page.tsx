@@ -26,7 +26,7 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Invalid password");
       setToken(data.token);
-      router.replace("/");
+      window.location.href = "/";
     } catch (e) {
       setError(e instanceof Error ? e.message : "Login failed");
     } finally {
