@@ -32,7 +32,7 @@ def verify_token(token: str, secret_key: str) -> bool:
 @router.post("/login")
 async def login(payload: LoginPayload):
     settings = get_settings()
-    if payload.password != settings.admin_password:
+    if payload.password.strip() != settings.admin_password.strip():
         raise HTTPException(status_code=401, detail="Invalid password")
     return {"token": create_token(settings.secret_key)}
 
